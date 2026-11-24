@@ -1,0 +1,92 @@
+name: Build & release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'manifest.json'
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build (mot Jellyfin.Controller från NuGet)
+        run: dotnet build Jellyfin.Plugin.ReleaseDateAdded/Jellyfin.Plugin.ReleaseDateAdded.csproj -c Release -o out
+
+      - name: Package
+        id: pkg
+        run: |
+          VERSION=$(sed -nE 's/^version: *"?([^"]+)"?.*/\1/p' build.yaml)
+          TARGET_ABI=$(sed -nE 's/^targetAbi: *"?([^"]+)"?.*/\1/p' build.yaml)
+          ZIP="release-date-added_${VERSION}.zip"
+          mkdir -p pkg
+          cp out/Jellyfin.Plugin.ReleaseDateAdded.dll meta.json pkg/
+          (cd pkg && zip -X -q "../$ZIP" ./*)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "targetAbi=$TARGET_ABI" >> "$GITHUB_OUTPUT"
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "md5=$(md5sum "$ZIP" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ steps.pkg.outputs.version }}
+          ZIP: ${{ steps.pkg.outputs.zip }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ZIP" --clobber
+          else
+            gh release create "$TAG" "$ZIP" --title "Release Date Added $TAG" --notes "Byggd automatiskt mot Jellyfin 12.x."
+          fi
+
+      - name: Update manifest.json
+        env:
+          VERSION: ${{ steps.pkg.outputs.version }}
+          TARGET_ABI: ${{ steps.pkg.outputs.targetAbi }}
+          ZIP: ${{ steps.pkg.outputs.zip }}
+          MD5: ${{ steps.pkg.outputs.md5 }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json, os, datetime
+          meta = json.load(open("meta.json", encoding="utf-8"))
+          v = os.environ
+          manifest = [{
+              "guid": meta["guid"],
+              "name": meta["name"],
+              "description": meta["description"],
+              "overview": meta["overview"],
+              "owner": meta["owner"],
+              "category": meta["category"],
+              "imageUrl": "",
+              "versions": [{
+                  "version": v["VERSION"],
+                  "changelog": meta["changelog"],
+                  "targetAbi": v["TARGET_ABI"],
+                  "sourceUrl": f"https://github.com/{v['REPO']}/releases/download/v{v['VERSION']}/{v['ZIP']}",
+                  "checksum": v["MD5"],
+                  "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              }],
+          }]
+          with open("manifest.json", "w", encoding="utf-8") as f:
+              json.dump(manifest, f, ensure_ascii=False, indent=2)
+              f.write("\n")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Uppdatera manifest.json för v${VERSION} [skip ci]"
+            git push
+          fi

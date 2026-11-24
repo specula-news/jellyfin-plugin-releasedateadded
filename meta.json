@@ -1,0 +1,16 @@
+{
+  "category": "General",
+  "changelog": "1.0.0: Första versionen.",
+  "description": "Sätter 'Date added' (DateCreated) till releasedatum (PremiereDate) för avsnitt, filmer och musikvideor, så att Recently Added sorteras efter release i stället för filens skapandedatum. Ursprungliga datum sparas och kan återställas.",
+  "guid": "28bec86d-d278-4b70-8a9e-20934095496c",
+  "name": "Release Date Added",
+  "overview": "Recently Added sorterat efter releasedatum",
+  "owner": "Ermin",
+  "targetAbi": "12.0.0.0",
+  "timestamp": "2026-11-24T00:00:00.0000000Z",
+  "version": "1.0.0.0",
+  "status": "Active",
+  "autoUpdate": false,
+  "imagePath": "",
+  "assemblies": []
+}

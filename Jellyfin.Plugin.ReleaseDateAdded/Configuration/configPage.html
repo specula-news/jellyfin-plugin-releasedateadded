@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="utf-8">
+    <title>Release Date Added</title>
+</head>
+<body>
+    <div id="ReleaseDateAddedConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="ReleaseDateAddedConfigForm">
+                    <div class="verticalSection">
+                        <h2 class="sectionTitle">Release Date Added</h2>
+                        <p>Sätter <b>Date added</b> till objektets <b>releasedatum</b> (premiärdatum från TMDb/IMDb/TVDb eller NFO).
+                        Då sorteras <i>Recently Added</i> efter när något släpptes, inte efter när filen skapades.
+                        Objekt utan releasedatum lämnas orörda.</p>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="Enabled" type="checkbox" is="emby-checkbox" />
+                            <span><b>Aktiverad</b></span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Huvudbrytare. Stängs av automatiskt om du kör uppgiften "Återställ ursprungliga 'Date added'".</div>
+                    </div>
+
+                    <h3 class="sectionTitle">Gäller</h3>
+                    <div class="checkboxContainer">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableEpisodes" type="checkbox" is="emby-checkbox" />
+                            <span>TV-avsnitt</span>
+                        </label>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableMovies" type="checkbox" is="emby-checkbox" />
+                            <span>Filmer</span>
+                        </label>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableMusicVideos" type="checkbox" is="emby-checkbox" />
+                            <span>Musikvideor</span>
+                        </label>
+                    </div>
+
+                    <h3 class="sectionTitle">Beteende</h3>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableRealtime" type="checkbox" is="emby-checkbox" />
+                            <span>Uppdatera direkt när nya filer läses in</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Annars sker det bara när den schemalagda uppgiften körs (varje natt kl 04:00 som standard).</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="KeepTimeOfDay" type="checkbox" is="emby-checkbox" />
+                            <span>Behåll klockslaget från när filen lades till</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Releasedatum + klockslag. Avsnitt som släpps samma dag hamnar då i den ordning de laddades ner.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="UpdateSeriesDateLastMediaAdded" type="checkbox" is="emby-checkbox" />
+                            <span>Uppdatera seriens "Date episode added"</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Så att sortering på "Date episode added" i TV-biblioteket följer avsnittens releasedatum.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="SkipLockedItems" type="checkbox" is="emby-checkbox" />
+                            <span>Hoppa över låsta objekt</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Objekt där du kryssat i "Lås detta objekt" i metadata-redigeraren rörs inte.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="UpdateNfoFiles" type="checkbox" is="emby-checkbox" />
+                            <span>Skriv även till NFO-filer</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Bara relevant om du har NFO-sparning påslaget i biblioteket. Gör att &lt;dateadded&gt; i NFO också uppdateras.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="DryRun" type="checkbox" is="emby-checkbox" />
+                            <span>Testläge (ändra ingenting, logga bara)</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Kör uppgiften och kolla serverloggen för att se vad som skulle ändras.</div>
+                    </div>
+
+                    <div class="verticalSection">
+                        <p class="fieldDescription">Ursprungliga datum sparas i en backup. Vill du ångra allt: kör
+                        <i>"Återställ ursprungliga 'Date added' (Release Date Added)"</i> under Dashboard → Schemalagda uppgifter.</p>
+                    </div>
+
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Spara</span>
+                        </button>
+                        <button is="emby-button" type="button" id="RunTaskNow" class="raised block emby-button">
+                            <span>Kör på hela biblioteket nu</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            (function () {
+                var pluginId = '28bec86d-d278-4b70-8a9e-20934095496c';
+                var taskKey = 'ReleaseDateAddedFullScan';
+                var fields = ['Enabled', 'EnableEpisodes', 'EnableMovies', 'EnableMusicVideos', 'EnableRealtime', 'KeepTimeOfDay',
+                    'UpdateSeriesDateLastMediaAdded', 'SkipLockedItems', 'UpdateNfoFiles', 'DryRun'];
+                var page = document.querySelector('#ReleaseDateAddedConfigPage');
+
+                page.addEventListener('pageshow', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        fields.forEach(function (name) {
+                            page.querySelector('#' + name).checked = !!config[name];
+                        });
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+
+                page.querySelector('#ReleaseDateAddedConfigForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        fields.forEach(function (name) {
+                            config[name] = page.querySelector('#' + name).checked;
+                        });
+                        ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                            Dashboard.processPluginConfigurationUpdateResult(result);
+                        });
+                    });
+                    return false;
+                });
+
+                page.querySelector('#RunTaskNow').addEventListener('click', function () {
+                    ApiClient.getJSON(ApiClient.getUrl('ScheduledTasks')).then(function (tasks) {
+                        var task = (tasks || []).filter(function (t) { return t.Key === taskKey; })[0];
+                        if (!task) {
+                            throw new Error('Task not found');
+                        }
+                        return ApiClient.fetch({ url: ApiClient.getUrl('ScheduledTasks/Running/' + task.Id), type: 'POST' });
+                    }).then(function () {
+                        Dashboard.alert('Uppgiften är startad. Följ förloppet under Dashboard → Schemalagda uppgifter.');
+                    }).catch(function () {
+                        Dashboard.alert('Kunde inte starta uppgiften härifrån. Kör "Sätt \'Date added\' från releasedatum" under Dashboard → Schemalagda uppgifter.');
+                    });
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>

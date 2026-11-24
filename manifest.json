@@ -1,20 +1,20 @@
 [
   {
     "guid": "28bec86d-d278-4b70-8a9e-20934095496c",
-    "name": "Release Date Added",
-    "description": "Sätter 'Date added' (DateCreated) till releasedatum (PremiereDate) för avsnitt, filmer och musikvideor, så att Recently Added sorteras efter release i stället för filens skapandedatum. Ursprungliga datum sparas och kan återställas.",
-    "overview": "Recently Added sorterat efter releasedatum",
+    "name": "Air Date and Metadata Fixer",
+    "description": "Sätter 'Date added' till sändnings-/releasedatum så att Recently Added sorteras efter release i stället för filens skapandedatum. Avsnitt som saknar datum eller titel slås upp via seriens IMDb-/TVDb-ID hos TVmaze (och valfritt OMDb/IMDb); finns inget uppskattas datumet från seriens övriga avsnitt eller utgivningsåret. Ursprungliga datum sparas och kan återställas.",
+    "overview": "Recently Added efter sändningsdatum + saknade sändningsdatum/titlar via IMDb/TVmaze",
     "owner": "Ermin",
     "category": "General",
     "imageUrl": "",
     "versions": [
       {
-        "version": "1.0.0.0",
-        "changelog": "1.0.0: Första versionen.",
+        "version": "1.1.0.0",
+        "changelog": "1.1.0: Nytt namn. Slår upp saknade sändningsdatum, titlar, beskrivningar och IMDb-ID via TVmaze/OMDb. Uppskattar datum för avsnitt/filmer utan metadata så att gamla serier inte hamnar först. Stöd för videor i blandade bibliotek. Rapport över omatchade avsnitt.",
         "targetAbi": "12.0.0.0",
-        "sourceUrl": "https://github.com/specula-news/jellyfin-plugin-releasedateadded/releases/download/v1.0.0.0/release-date-added_1.0.0.0.zip",
-        "checksum": "7891bbbad67b4a2c05bb4f1accb2072b",
-        "timestamp": "2026-11-24T16:15:29Z"
+        "sourceUrl": "https://github.com/specula-news/jellyfin-plugin-releasedateadded/releases/download/v1.1.0.0/release-date-added_1.1.0.0.zip",
+        "checksum": "8071820fa839c19c0dccced3b977c1b2",
+        "timestamp": "2026-11-24T16:52:54Z"
       }
     ]
   }

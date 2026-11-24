@@ -1,16 +1,16 @@
 {
   "category": "General",
-  "changelog": "1.2.0: Renamed to IMDb Air Date Fixer. Everything is now in English. Items without any air date get January 1st of their own year or the series' start year (fallback 2000) instead of showing up first.",
-  "description": "Sets 'Date added' to the air/release date so Recently Added is ordered by release instead of file creation time. Episodes missing an air date or title are looked up via the series' IMDb/TVDb ID on TVmaze (and optionally OMDb/IMDb data). If nothing is found, the date is estimated from the series' other episodes, and items with no date at all get January 1st of their own or the series' start year so they never show up first. Original dates are backed up and can be restored.",
+  "changelog": "1.3.0: New icon. More free sources: TMDb, Trakt and Wikidata in addition to TVmaze and OMDb/IMDb; Jellyfin is asked to search again for missing metadata; series get their TMDb ID saved. Updates install automatically, and the settings page shows when an update is available with Install and Restart buttons.",
+  "description": "Sets 'Date added' to the air/release date so Recently Added is ordered by release instead of file creation time. Episodes missing an air date or title are looked up via the series' IMDb/TVDb ID in free sources: TVmaze and Wikidata (no key), TMDb, Trakt and OMDb/IMDb (free keys). Jellyfin is also asked to search again with its own providers. If nothing is found, the date is estimated, and items with no date at all get January 1st of their own or the series' start year so they never show up first. Updates install automatically. Original dates are backed up and can be restored.",
   "guid": "28bec86d-d278-4b70-8a9e-20934095496c",
   "name": "IMDb Air Date Fixer",
-  "overview": "Recently Added ordered by air date, plus missing air dates and titles via IMDb IDs",
+  "overview": "Recently Added ordered by air date, plus missing air dates and titles from free IMDb-linked sources",
   "owner": "specula-news",
   "targetAbi": "12.0.0.0",
   "timestamp": "2026-11-24T00:00:00.0000000Z",
-  "version": "1.2.0.0",
+  "version": "1.3.0.0",
   "status": "Active",
-  "autoUpdate": false,
-  "imagePath": "",
+  "autoUpdate": true,
+  "imagePath": "plugin-image.png",
   "assemblies": []
 }

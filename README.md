@@ -1,5 +1,7 @@
 # IMDb Air Date Fixer – Jellyfin plugin
 
+<img src="assets/icon.png" width="96" align="right" alt="IMDb Air Date Fixer icon">
+
 *(formerly "Release Date Added" / "Air Date and Metadata Fixer")*
 
 Orders **Recently Added** in Jellyfin by **air/release date** instead of file creation time, and fills in
@@ -14,11 +16,21 @@ If a single episode has no metadata (its title becomes the file name, e.g. `Sist
 the file's date – and the whole series, even one from 2007, jumps to the top. The plugin works in four steps:
 
 1. **Jellyfin's metadata** (TMDb/TVDb/NFO): if there is an air date, it is used.
-2. **IMDb lookup**: if the air date is missing (or the title is a file name), the episode is looked up via the
-   series' IMDb/TVDb ID on [TVmaze](https://www.tvmaze.com/api) (free, no key). With an
-   [OMDb key](https://www.omdbapi.com/apikey.aspx) (free), IMDb data is used too and episode IMDb IDs are filled in.
-   Air date, title, overview and IDs are saved on the episode. Series without IDs are matched by name + year
-   and get their IMDb/TVDb/TVmaze IDs saved.
+2. **Free online sources, matched by IMDb ID**: if the air date is missing (or the title is a file name), the episode is
+   looked up via the series' IMDb/TVDb/TMDb ID in these free sources, in this order, until everything is found:
+
+   | Source | Key | What it gives |
+   |---|---|---|
+   | [TVmaze](https://www.tvmaze.com/api) | none | air date, title, overview |
+   | [TMDb](https://www.themoviedb.org/settings/api) | free API key | air date, title, overview, TMDb ID for the series |
+   | [Trakt](https://trakt.tv/oauth/applications) | free client ID | air date, title, overview, episode IMDb ID |
+   | [Wikidata](https://www.wikidata.org) | none | air date, title, episode IMDb ID (well-known shows) |
+   | [OMDb](https://www.omdbapi.com/apikey.aspx) (IMDb data) | free API key | air date, title, episode IMDb ID |
+
+   Air date, title, overview and IDs are saved on the episode. Series without IDs are matched by name + year and get
+   their IMDb/TVDb/TMDb/TVmaze IDs saved – which also helps Jellyfin's own providers.
+   During the nightly task Jellyfin is also asked to **search again for missing metadata** (with all its own providers)
+   for series and movies that still lack dates.
 3. **Estimate**: nearest episode in the same season → season premiere → earlier/later seasons →
    end date of ended series. Movies/videos without a date get January 1st of their release year.
 4. **Older year for everything else**: items with no date at all get January 1st of their own year or the
@@ -37,6 +49,13 @@ All undated items are listed in a report so you can fix them.
 3. **Catalog** → **IMDb Air Date Fixer** → **Install** (or update), then restart Jellyfin.
 
 If an earlier version is installed, this one shows up as an update – it is the same plugin.
+
+### Updates
+
+From 1.3, new versions are installed automatically (checked a few minutes after startup and every 6 hours).
+Jellyfin then shows **restart required** on the dashboard and "IMDb Air Date Fixer was updated" in the activity log.
+The plugin's settings page also shows a banner when an update is available, with **Install update** and
+**Restart Jellyfin now** buttons.
 
 ### Manual installation
 
@@ -73,7 +92,12 @@ in Jellyfin, then run the task again.
 | Enabled | On | Master switch |
 | TV episodes / Movies / Music videos / Other videos | On | Which item types are covered (extras are never touched) |
 | Look up missing air dates and titles | On | TVmaze via IMDb/TVDb ID |
-| OMDb API key | – | Optional, adds IMDb data and episode IMDb IDs |
+| TMDb API key | – | Optional (free) |
+| Trakt client ID | – | Optional (free) |
+| Use Wikidata | On | Free, no key |
+| OMDb API key | – | Optional (free), adds IMDb data and episode IMDb IDs |
+| Ask Jellyfin to search again for missing metadata | On | At most 50 series + 100 movies per run, every 3 days per item |
+| Install plugin updates automatically | On | |
 | Save found metadata on the episode | On | Air date, title (only if it looks like a file name), overview (only if empty), IDs. Locked fields are never changed |
 | Estimate dates when nothing is found | On | See above |
 | Give items without any date an older year | On | January 1st of their own/series' year |

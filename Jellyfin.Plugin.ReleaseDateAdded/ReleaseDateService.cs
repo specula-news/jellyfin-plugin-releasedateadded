@@ -12,7 +12,9 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.IO;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.ReleaseDateAdded;
@@ -58,6 +60,9 @@ public enum DateSource
 public sealed class ReleaseDateService
 {
     private const int MaxReportLines = 2000;
+    private const int MaxSeriesRefreshesPerRun = 50;
+    private const int MaxItemRefreshesPerRun = 100;
+    private static readonly TimeSpan RefreshCooldown = TimeSpan.FromDays(3);
 
     private readonly ILibraryManager _libraryManager;
     private readonly OnlineEpisodeLookup _lookup;
@@ -65,11 +70,20 @@ public sealed class ReleaseDateService
     private readonly ConcurrentDictionary<Guid, byte> _ownWrites = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly OriginalDateStore _store;
+    private readonly IProviderManager _providerManager;
+    private readonly IFileSystem _fileSystem;
 
-    public ReleaseDateService(ILibraryManager libraryManager, OnlineEpisodeLookup lookup, ILogger<ReleaseDateService> logger)
+    public ReleaseDateService(
+        ILibraryManager libraryManager,
+        OnlineEpisodeLookup lookup,
+        IProviderManager providerManager,
+        IFileSystem fileSystem,
+        ILogger<ReleaseDateService> logger)
     {
         _libraryManager = libraryManager;
         _lookup = lookup;
+        _providerManager = providerManager;
+        _fileSystem = fileSystem;
         _logger = logger;
         _store = new OriginalDateStore(logger);
     }
@@ -304,6 +318,24 @@ public sealed class ReleaseDateService
                 + (source == DateSource.Fallback ? $" → placed at {release:yyyy-MM-dd}" : " → treated as new"));
         }
 
+        // Still no real air date (or still a file name as title): let Jellyfin's own providers search again later.
+        if (source is DateSource.Fallback or DateSource.Estimated or DateSource.None
+            || (item is Episode named && MetadataHeuristics.LooksLikeFileName(named.Name, named.Path) && !filled.Any(f => f.StartsWith("title", StringComparison.Ordinal))))
+        {
+            if (item is Episode missingEpisode)
+            {
+                var sid = SeriesIdOf(missingEpisode);
+                if (sid != Guid.Empty)
+                {
+                    ctx.SeriesToRefresh.Add(sid);
+                }
+            }
+            else
+            {
+                ctx.ItemsToRefresh.Add(item.Id);
+            }
+        }
+
         var newDate = release.HasValue
             ? DateAddedCalculator.CalculateNewDateAdded(oldDate, release, now, config.KeepTimeOfDay)
             : null;
@@ -480,13 +512,21 @@ public sealed class ReleaseDateService
             series.ProductionYear,
             MetadataHeuristics.GetProviderId(series.ProviderIds, "Imdb"),
             MetadataHeuristics.GetProviderId(series.ProviderIds, "Tvdb"),
-            MetadataHeuristics.GetProviderId(series.ProviderIds, "TvMaze"));
+            MetadataHeuristics.GetProviderId(series.ProviderIds, "TvMaze"),
+            MetadataHeuristics.GetProviderId(series.ProviderIds, "Tmdb"));
 
-        var result = await _lookup.FindEpisodeAsync(key, season, number, ctx.Config.OmdbApiKey, cancellationToken).ConfigureAwait(false);
+        var options = new LookupOptions(
+            true,
+            NullIfEmpty(ctx.Config.TmdbApiKey),
+            NullIfEmpty(ctx.Config.TraktClientId),
+            NullIfEmpty(ctx.Config.OmdbApiKey),
+            ctx.Config.EnableWikidata);
+        var result = await _lookup.FindEpisodeAsync(key, season, number, options, cancellationToken).ConfigureAwait(false);
         ctx.Lookups++;
 
         // Better matching from now on: save the series' IMDb/TVDb/TVmaze IDs if missing.
-        if (ctx.Config.FillMissingMetadata && !ctx.Config.DryRun && result.TvMazeShowId.HasValue)
+        if (ctx.Config.FillMissingMetadata && !ctx.Config.DryRun
+            && (result.TvMazeShowId.HasValue || result.ShowTmdbId is not null || result.ShowImdbId is not null))
         {
             ctx.SeriesIdFills[series.Id] = result;
         }
@@ -610,6 +650,8 @@ public sealed class ReleaseDateService
         return series;
     }
 
+    private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private static int? SeriesYear(Series? series)
         => series?.ProductionYear ?? series?.PremiereDate?.Year;
 
@@ -641,15 +683,20 @@ public sealed class ReleaseDateService
             {
                 await UpdateSeriesAsync(ctx.SeriesToUpdate, cancellationToken).ConfigureAwait(false);
             }
+
+            if (fullRun && ctx.Config.AskJellyfinToSearchAgain)
+            {
+                QueueJellyfinRefreshes(ctx);
+            }
         }
 
         if (fullRun)
         {
             var reportPath = WriteReport(ctx);
             _logger.LogInformation(
-                "{Prefix} done. {Changed} {Verb} (from metadata {Meta}, IMDb/TVmaze {Online}, estimated {Estimated}, fallback year {Fallback}), " +
+                "{Prefix} done. {Changed} {Verb} (from metadata {Meta}, online sources {Online}, estimated {Estimated}, fallback year {Fallback}), " +
                 "{Filled} episodes got missing metadata, {Unchanged} already correct, {NoDate} without any air date, {Skipped} skipped, {Errors} errors. " +
-                "{Lookups} lookups ({Misses} without match, {Requests} requests). Report: {Report}",
+                "{Lookups} lookups ({Misses} without match, {Requests} requests), {Queued} items queued for a new Jellyfin metadata search. Report: {Report}",
                 Plugin.LogPrefix,
                 ctx.ChangedTotal,
                 ctx.Config.DryRun ? "would change (dry run)" : "changed",
@@ -665,6 +712,7 @@ public sealed class ReleaseDateService
                 ctx.Lookups,
                 ctx.LookupMisses,
                 _lookup.RequestCount,
+                ctx.RefreshesQueued,
                 reportPath ?? "-");
 
             foreach (var line in ctx.Report.Take(25))
@@ -672,6 +720,63 @@ public sealed class ReleaseDateService
                 _logger.LogInformation("{Prefix} {Line}", Plugin.LogPrefix, line);
             }
         }
+    }
+
+    /// <summary>
+    /// Asks Jellyfin to "search for missing metadata" (all its providers: TMDb, TVDb, OMDb, TVmaze …) for series and
+    /// movies that still lack air dates. Limited per run, and skipped for items refreshed in the last few days.
+    /// When the refresh finishes, the real-time watcher picks up the new dates.
+    /// </summary>
+    private void QueueJellyfinRefreshes(RunContext ctx)
+    {
+        var now = DateTime.UtcNow;
+        var options = new MetadataRefreshOptions(new DirectoryService(_fileSystem))
+        {
+            MetadataRefreshMode = MetadataRefreshMode.FullRefresh,
+            ImageRefreshMode = MetadataRefreshMode.FullRefresh,
+            ReplaceAllMetadata = false,
+            ReplaceAllImages = false,
+            ForceSave = true,
+            IsAutomated = true
+        };
+
+        var seriesQueued = 0;
+        foreach (var seriesId in ctx.SeriesWithNewIds.Concat(ctx.SeriesToRefresh).Distinct())
+        {
+            if (seriesQueued >= MaxSeriesRefreshesPerRun)
+            {
+                break;
+            }
+
+            var series = _libraryManager.GetItemById(seriesId);
+            if (series is null || (!ctx.SeriesWithNewIds.Contains(seriesId) && now - series.DateLastRefreshed < RefreshCooldown))
+            {
+                continue;
+            }
+
+            _providerManager.QueueRefresh(seriesId, options, RefreshPriority.Low);
+            seriesQueued++;
+        }
+
+        var itemsQueued = 0;
+        foreach (var itemId in ctx.ItemsToRefresh)
+        {
+            if (itemsQueued >= MaxItemRefreshesPerRun)
+            {
+                break;
+            }
+
+            var item = _libraryManager.GetItemById(itemId);
+            if (item is null || now - item.DateLastRefreshed < RefreshCooldown)
+            {
+                continue;
+            }
+
+            _providerManager.QueueRefresh(itemId, options, RefreshPriority.Low);
+            itemsQueued++;
+        }
+
+        ctx.RefreshesQueued = seriesQueued + itemsQueued;
     }
 
     private async Task SaveSeriesIdsAsync(RunContext ctx, CancellationToken cancellationToken)
@@ -696,9 +801,12 @@ public sealed class ReleaseDateService
             Set("TvMaze", result.TvMazeShowId?.ToString(System.Globalization.CultureInfo.InvariantCulture));
             Set("Imdb", result.ShowImdbId);
             Set("Tvdb", result.ShowTvdbId);
+            Set("Tmdb", result.ShowTmdbId);
 
             if (changed.Count > 0)
             {
+                // New IDs let Jellyfin's own providers (e.g. TMDb) find the episodes – search again right away.
+                ctx.SeriesWithNewIds.Add(series.Id);
                 _ownWrites[series.Id] = 0;
                 try
                 {
@@ -819,6 +927,14 @@ public sealed class ReleaseDateService
         public HashSet<Guid> SeriesToUpdate { get; } = new();
 
         public Dictionary<Guid, LookupResult> SeriesIdFills { get; } = new();
+
+        public HashSet<Guid> SeriesToRefresh { get; } = new();
+
+        public HashSet<Guid> SeriesWithNewIds { get; } = new();
+
+        public HashSet<Guid> ItemsToRefresh { get; } = new();
+
+        public int RefreshesQueued { get; set; }
 
         public List<string> Report { get; } = new();
 

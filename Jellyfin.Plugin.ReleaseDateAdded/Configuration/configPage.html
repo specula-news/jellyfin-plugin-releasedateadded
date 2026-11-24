@@ -17,6 +17,21 @@
                         items with no date at all get an older year so they never show up first.</p>
                     </div>
 
+                    <div id="UpdateBox" class="verticalSection" style="padding:1em 1.2em;border-radius:.6em;background:rgba(240,166,58,.12);border:1px solid rgba(240,166,58,.45);margin-bottom:1.5em;">
+                        <div style="display:flex;align-items:center;gap:1em;flex-wrap:wrap;">
+                            <div style="flex:1 1 18em;">
+                                <div id="UpdateTitle" style="font-weight:bold;font-size:1.1em;">Checking for updates…</div>
+                                <div id="UpdateText" class="fieldDescription" style="margin-top:.3em;"></div>
+                            </div>
+                            <button is="emby-button" type="button" id="InstallUpdate" class="raised button-submit emby-button" style="display:none;margin:0;">
+                                <span>Install update</span>
+                            </button>
+                            <button is="emby-button" type="button" id="RestartServer" class="raised emby-button" style="display:none;margin:0;">
+                                <span>Restart Jellyfin now</span>
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
                             <input id="Enabled" type="checkbox" is="emby-checkbox" />
@@ -52,7 +67,9 @@
                         <div class="fieldDescription checkboxFieldDescription">Mixed content / home video libraries (e.g. documentaries without movie metadata). Extras are never touched.</div>
                     </div>
 
-                    <h3 class="sectionTitle">Missing metadata (IMDb)</h3>
+                    <h3 class="sectionTitle">Missing metadata (IMDb and other free sources)</h3>
+                    <p class="fieldDescription">Sources are tried in this order until the air date, title, overview and IMDb ID are found:
+                    TVmaze → TMDb → Trakt → Wikidata → OMDb/IMDb. All are free; three of them need a free key that you create on their website.</p>
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
                             <input id="EnableOnlineLookup" type="checkbox" is="emby-checkbox" />
@@ -61,9 +78,33 @@
                         <div class="fieldDescription checkboxFieldDescription">Matches the series' IMDb/TVDb ID on TVmaze (free, no key). Series without IDs are matched by name + year, and the IDs are saved on the series.</div>
                     </div>
                     <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">TMDb API key or read access token (optional)</label>
+                        <input id="TmdbApiKey" type="text" is="emby-input" autocomplete="off" />
+                        <div class="fieldDescription">Free at themoviedb.org → Settings → API. Finds the series by its IMDb/TVDb ID and saves the TMDb ID on the series, so Jellyfin's own TMDb provider can match the episodes too.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="TraktClientId">Trakt client ID (optional)</label>
+                        <input id="TraktClientId" type="text" is="emby-input" autocomplete="off" />
+                        <div class="fieldDescription">Free at trakt.tv/oauth/applications (create an app, copy the Client ID). Gives air dates, titles, overviews and episode IMDb IDs.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableWikidata" type="checkbox" is="emby-checkbox" />
+                            <span>Use Wikidata</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Free, no key. Looks up episodes by the series' IMDb ID (best for well-known shows).</div>
+                    </div>
+                    <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="OmdbApiKey">OMDb API key (optional)</label>
                         <input id="OmdbApiKey" type="text" is="emby-input" autocomplete="off" />
                         <div class="fieldDescription">IMDb data via omdbapi.com (free key, 1,000 lookups/day). Used when TVmaze has no date, and to fill in episode IMDb IDs.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="AskJellyfinToSearchAgain" type="checkbox" is="emby-checkbox" />
+                            <span>Ask Jellyfin to search again for missing metadata</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">During the nightly task, series and movies that still lack air dates get "Search for missing metadata" with all of Jellyfin's own providers (at most 50 series and 100 movies per run, not more often than every 3 days per item).</div>
                     </div>
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
@@ -93,6 +134,13 @@
                     </div>
 
                     <h3 class="sectionTitle">Behavior</h3>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="AutoInstallUpdates" type="checkbox" is="emby-checkbox" />
+                            <span>Install plugin updates automatically</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Checks for a new version a few minutes after startup and every 6 hours. Jellyfin then shows "restart required" on the dashboard.</div>
+                    </div>
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
                             <input id="EnableRealtime" type="checkbox" is="emby-checkbox" />
@@ -159,17 +207,93 @@
                 var pluginId = '28bec86d-d278-4b70-8a9e-20934095496c';
                 var taskKey = 'ReleaseDateAddedFullScan';
                 var fields = ['Enabled', 'EnableEpisodes', 'EnableMovies', 'EnableMusicVideos', 'EnableOtherVideos', 'EnableOnlineLookup',
-                    'FillMissingMetadata', 'EstimateMissingDates', 'PushUndatedItemsDown', 'EnableRealtime', 'KeepTimeOfDay',
-                    'UpdateSeriesDateLastMediaAdded', 'SkipLockedItems', 'UpdateNfoFiles', 'DryRun'];
+                    'EnableWikidata', 'AskJellyfinToSearchAgain', 'FillMissingMetadata', 'EstimateMissingDates', 'PushUndatedItemsDown',
+                    'AutoInstallUpdates', 'EnableRealtime', 'KeepTimeOfDay', 'UpdateSeriesDateLastMediaAdded', 'SkipLockedItems',
+                    'UpdateNfoFiles', 'DryRun'];
+                var textFields = ['OmdbApiKey', 'TmdbApiKey', 'TraktClientId'];
                 var page = document.querySelector('#ImdbAirDateFixerConfigPage');
 
+                var available = null;
+
+                function cmp(a, b) {
+                    var x = String(a).split('.'), y = String(b).split('.');
+                    for (var i = 0; i < Math.max(x.length, y.length); i++) {
+                        var d = (parseInt(x[i], 10) || 0) - (parseInt(y[i], 10) || 0);
+                        if (d !== 0) { return d; }
+                    }
+                    return 0;
+                }
+
+                function showUpdate(title, text, canInstall, canRestart) {
+                    page.querySelector('#UpdateTitle').textContent = title;
+                    page.querySelector('#UpdateText').textContent = text || '';
+                    page.querySelector('#InstallUpdate').style.display = canInstall ? '' : 'none';
+                    page.querySelector('#RestartServer').style.display = canRestart ? '' : 'none';
+                }
+
+                function checkForUpdates() {
+                    var id = pluginId.replace(/-/g, '').toLowerCase();
+                    Promise.all([
+                        ApiClient.getJSON(ApiClient.getUrl('Plugins')),
+                        ApiClient.getJSON(ApiClient.getUrl('Packages/' + encodeURIComponent('IMDb Air Date Fixer'), { assemblyGuid: pluginId })),
+                        ApiClient.getJSON(ApiClient.getUrl('System/Info'))
+                    ]).then(function (r) {
+                        var mine = (r[0] || []).filter(function (p) { return String(p.Id).replace(/-/g, '').toLowerCase() === id; });
+                        var installed = mine.map(function (p) { return p.Version; }).sort(cmp).pop() || '?';
+                        var running = mine.filter(function (p) { return p.Status === 'Active'; }).map(function (p) { return p.Version; }).sort(cmp).pop() || installed;
+                        var versions = ((r[1] && r[1].versions) || []).slice().sort(function (a, b) { return cmp(b.version, a.version); });
+                        var latest = versions[0];
+                        var pending = !!(r[2] && r[2].HasPendingRestart);
+                        if (latest && cmp(latest.version, installed) > 0) {
+                            available = latest;
+                            showUpdate('Update available: version ' + latest.version + ' (you have ' + running + ')', latest.changelog, true, false);
+                        } else if (pending && cmp(installed, running) > 0) {
+                            showUpdate('Version ' + installed + ' is installed – restart Jellyfin to activate it', '', false, true);
+                        } else {
+                            showUpdate('You have the latest version (' + running + ')', pending ? 'Jellyfin is waiting for a restart.' : '', false, pending);
+                        }
+                    }).catch(function () {
+                        showUpdate('Could not check for updates', 'Check Dashboard → Plugins → Catalog instead.', false, false);
+                    });
+                }
+
+                page.querySelector('#InstallUpdate').addEventListener('click', function () {
+                    if (!available) { return; }
+                    Dashboard.showLoadingMsg();
+                    ApiClient.fetch({
+                        type: 'POST',
+                        url: ApiClient.getUrl('Packages/Installed/' + encodeURIComponent('IMDb Air Date Fixer'), {
+                            assemblyGuid: pluginId,
+                            version: available.version,
+                            repositoryUrl: available.repositoryUrl
+                        })
+                    }).then(function () {
+                        Dashboard.hideLoadingMsg();
+                        showUpdate('Version ' + available.version + ' is installed – restart Jellyfin to activate it', '', false, true);
+                    }).catch(function () {
+                        Dashboard.hideLoadingMsg();
+                        showUpdate('The update could not be installed', 'Try Dashboard → Plugins → Catalog, or check the server log.', true, false);
+                    });
+                });
+
+                page.querySelector('#RestartServer').addEventListener('click', function () {
+                    ApiClient.fetch({ type: 'POST', url: ApiClient.getUrl('System/Restart') }).then(function () {
+                        showUpdate('Jellyfin is restarting…', 'Reload this page in a minute.', false, false);
+                    }).catch(function () {
+                        showUpdate('Could not restart from here', 'Use Dashboard → Restart.', false, true);
+                    });
+                });
+
                 page.addEventListener('pageshow', function () {
+                    checkForUpdates();
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                         fields.forEach(function (name) {
                             page.querySelector('#' + name).checked = !!config[name];
                         });
-                        page.querySelector('#OmdbApiKey').value = config.OmdbApiKey || '';
+                        textFields.forEach(function (name) {
+                            page.querySelector('#' + name).value = config[name] || '';
+                        });
                         page.querySelector('#FallbackYear').value = config.FallbackYear || 2000;
                         Dashboard.hideLoadingMsg();
                     });
@@ -182,7 +306,9 @@
                         fields.forEach(function (name) {
                             config[name] = page.querySelector('#' + name).checked;
                         });
-                        config.OmdbApiKey = page.querySelector('#OmdbApiKey').value.trim();
+                        textFields.forEach(function (name) {
+                            config[name] = page.querySelector('#' + name).value.trim();
+                        });
                         var year = parseInt(page.querySelector('#FallbackYear').value, 10);
                         config.FallbackYear = isNaN(year) ? 2000 : year;
                         ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {

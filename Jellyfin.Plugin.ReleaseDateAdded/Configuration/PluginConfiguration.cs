@@ -28,6 +28,24 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Optional OMDb API key (IMDb data). Free at omdbapi.com. Empty = not used.</summary>
     public string OmdbApiKey { get; set; } = string.Empty;
 
+    /// <summary>Optional TMDb API key or read access token. Free at themoviedb.org. Empty = not used.</summary>
+    public string TmdbApiKey { get; set; } = string.Empty;
+
+    /// <summary>Optional Trakt client ID. Free at trakt.tv/oauth/applications. Empty = not used.</summary>
+    public string TraktClientId { get; set; } = string.Empty;
+
+    /// <summary>Use Wikidata (free, no key) to find air dates via the series' IMDb ID.</summary>
+    public bool EnableWikidata { get; set; } = true;
+
+    /// <summary>
+    /// Ask Jellyfin to search again for missing metadata (like "Refresh metadata → Search for missing metadata")
+    /// for series/movies that still lack air dates, using all metadata providers Jellyfin has.
+    /// </summary>
+    public bool AskJellyfinToSearchAgain { get; set; } = true;
+
+    /// <summary>Install new versions of this plugin automatically (Jellyfin then asks for a restart).</summary>
+    public bool AutoInstallUpdates { get; set; } = true;
+
     /// <summary>Save found metadata (air date, title, overview, IMDb ID) on the episode, not just use the date for sorting.</summary>
     public bool FillMissingMetadata { get; set; } = true;
 

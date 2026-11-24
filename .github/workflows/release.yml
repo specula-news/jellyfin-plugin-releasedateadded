@@ -45,7 +45,7 @@ jobs:
           TARGET_ABI=$(sed -nE 's/^targetAbi: *"?([^"]+)"?.*/\1/p' build.yaml)
           ZIP="imdb-air-date-fixer_${VERSION}.zip"
           mkdir -p pkg
-          cp out/Jellyfin.Plugin.ReleaseDateAdded.dll meta.json pkg/
+          cp out/Jellyfin.Plugin.ReleaseDateAdded.dll meta.json assets/plugin-image.png pkg/
           (cd pkg && zip -X -q "../$ZIP" ./*)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "targetAbi=$TARGET_ABI" >> "$GITHUB_OUTPUT"
@@ -97,7 +97,7 @@ jobs:
               "overview": meta["overview"],
               "owner": meta["owner"],
               "category": meta["category"],
-              "imageUrl": "",
+              "imageUrl": f"https://raw.githubusercontent.com/{v['REPO']}/main/assets/plugin-image.png",
               "versions": versions,
           }]
           with open("manifest.json", "w", encoding="utf-8") as f:

@@ -1,0 +1,21 @@
+[
+  {
+    "guid": "28bec86d-d278-4b70-8a9e-20934095496c",
+    "name": "Release Date Added",
+    "description": "Sätter 'Date added' (DateCreated) till releasedatum (PremiereDate) för avsnitt, filmer och musikvideor, så att Recently Added sorteras efter release i stället för filens skapandedatum. Ursprungliga datum sparas och kan återställas.",
+    "overview": "Recently Added sorterat efter releasedatum",
+    "owner": "Ermin",
+    "category": "General",
+    "imageUrl": "",
+    "versions": [
+      {
+        "version": "1.0.0.0",
+        "changelog": "1.0.0: Första versionen.",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/specula-news/jellyfin-plugin-releasedateadded/releases/download/v1.0.0.0/release-date-added_1.0.0.0.zip",
+        "checksum": "4f386dc030a41ad64f2e7387cda33cca",
+        "timestamp": "2026-11-24T16:13:07Z"
+      }
+    ]
+  }
+]

@@ -24,7 +24,21 @@ jobs:
       - name: Build (mot Jellyfin.Controller från NuGet)
         run: dotnet build Jellyfin.Plugin.ReleaseDateAdded/Jellyfin.Plugin.ReleaseDateAdded.csproj -c Release -o out
 
+      - name: Finns versionen redan som release?
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(sed -nE 's/^version: *"?([^"]+)"?.*/\1/p' build.yaml)
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::v$VERSION finns redan. Höj version i build.yaml, meta.json och .csproj för att släppa en ny."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Package
+        if: steps.check.outputs.exists == 'false'
         id: pkg
         run: |
           VERSION=$(sed -nE 's/^version: *"?([^"]+)"?.*/\1/p' build.yaml)
@@ -39,18 +53,15 @@ jobs:
           echo "md5=$(md5sum "$ZIP" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: GitHub release
+        if: steps.check.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: v${{ steps.pkg.outputs.version }}
           ZIP: ${{ steps.pkg.outputs.zip }}
-        run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$ZIP" --clobber
-          else
-            gh release create "$TAG" "$ZIP" --title "Release Date Added $TAG" --notes "Byggd automatiskt mot Jellyfin 12.x."
-          fi
+        run: gh release create "$TAG" "$ZIP" --title "Release Date Added $TAG" --notes "Byggd automatiskt mot Jellyfin 12.x."
 
       - name: Update manifest.json
+        if: steps.check.outputs.exists == 'false'
         env:
           VERSION: ${{ steps.pkg.outputs.version }}
           TARGET_ABI: ${{ steps.pkg.outputs.targetAbi }}

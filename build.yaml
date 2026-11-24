@@ -1,10 +1,10 @@
 ---
-name: "Release Date Added"
+name: "Air Date and Metadata Fixer"
 guid: "28bec86d-d278-4b70-8a9e-20934095496c"
-version: "1.0.0.0"
+version: "1.1.0.0"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
-overview: "Recently Added sorterat efter releasedatum"
+overview: "Recently Added efter sändningsdatum + saknad metadata via IMDb/TVmaze"
 description: >
   Sätter 'Date added' till releasedatum för avsnitt, filmer och musikvideor.
 category: "General"
@@ -12,4 +12,4 @@ owner: "Ermin"
 artifacts:
 - "Jellyfin.Plugin.ReleaseDateAdded.dll"
 changelog: >
-  1.0.0: Första versionen.
+  1.1.0: Nytt namn, uppslag av saknade sändningsdatum via IMDb/TVmaze, uppskattade datum, rapport.

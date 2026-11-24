@@ -18,7 +18,7 @@ public class RestoreTask : IScheduledTask
         _service = service;
     }
 
-    public string Name => "Återställ ursprungliga 'Date added' (Release Date Added)";
+    public string Name => "Air Date Fixer: återställ ursprungliga 'Date added'";
 
     public string Key => "ReleaseDateAddedRestore";
 

@@ -41,7 +41,7 @@ public sealed class LibraryWatcher : IHostedService, IDisposable
         _libraryManager.ItemAdded += OnItemChanged;
         _libraryManager.ItemUpdated += OnItemChanged;
 
-        _logger.LogInformation("Release Date Added: bevakar biblioteket.");
+        _logger.LogInformation("Air Date Fixer: bevakar biblioteket.");
         return Task.CompletedTask;
     }
 
@@ -97,7 +97,7 @@ public sealed class LibraryWatcher : IHostedService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Release Date Added: fel i event-hanteraren.");
+            _logger.LogError(ex, "Air Date Fixer: fel i event-hanteraren.");
         }
     }
 
@@ -130,7 +130,7 @@ public sealed class LibraryWatcher : IHostedService, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Release Date Added: kunde inte uppdatera {Count} objekt.", batch.Count);
+                    _logger.LogError(ex, "Air Date Fixer: kunde inte uppdatera {Count} objekt.", batch.Count);
                 }
             }
         }

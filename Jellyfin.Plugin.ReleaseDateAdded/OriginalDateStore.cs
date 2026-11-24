@@ -99,7 +99,7 @@ public sealed class OriginalDateStore
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Release Date Added: kunde inte spara backup av ursprungliga datum.");
+                _logger.LogError(ex, "Air Date Fixer: kunde inte spara backup av ursprungliga datum.");
             }
         }
     }
@@ -126,7 +126,7 @@ public sealed class OriginalDateStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Release Date Added: kunde inte läsa backup av ursprungliga datum.");
+            _logger.LogError(ex, "Air Date Fixer: kunde inte läsa backup av ursprungliga datum.");
         }
 
         return _entries;

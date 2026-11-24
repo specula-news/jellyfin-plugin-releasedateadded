@@ -2,7 +2,7 @@
 <html lang="sv">
 <head>
     <meta charset="utf-8">
-    <title>Release Date Added</title>
+    <title>Air Date and Metadata Fixer</title>
 </head>
 <body>
     <div id="ReleaseDateAddedConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
@@ -10,10 +10,10 @@
             <div class="content-primary">
                 <form id="ReleaseDateAddedConfigForm">
                     <div class="verticalSection">
-                        <h2 class="sectionTitle">Release Date Added</h2>
-                        <p>Sätter <b>Date added</b> till objektets <b>releasedatum</b> (premiärdatum från TMDb/IMDb/TVDb eller NFO).
-                        Då sorteras <i>Recently Added</i> efter när något släpptes, inte efter när filen skapades.
-                        Objekt utan releasedatum lämnas orörda.</p>
+                        <h2 class="sectionTitle">Air Date and Metadata Fixer</h2>
+                        <p>Sätter <b>Date added</b> till <b>sändnings-/releasedatum</b> så att <i>Recently Added</i> sorteras efter när något släpptes,
+                        inte efter när filen skapades. Avsnitt som saknar datum eller titel slås upp via seriens <b>IMDb-/TVDb-ID</b>
+                        (TVmaze och valfritt OMDb). Går inget att hitta uppskattas datumet från seriens övriga avsnitt.</p>
                     </div>
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
@@ -42,6 +42,41 @@
                             <input id="EnableMusicVideos" type="checkbox" is="emby-checkbox" />
                             <span>Musikvideor</span>
                         </label>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableOtherVideos" type="checkbox" is="emby-checkbox" />
+                            <span>Övriga videor</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Bibliotek med blandat innehåll/hemvideor (t.ex. dokumentärer utan filmmetadata). Extramaterial rörs aldrig.</div>
+                    </div>
+
+                    <h3 class="sectionTitle">Saknad metadata (IMDb / TVmaze)</h3>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableOnlineLookup" type="checkbox" is="emby-checkbox" />
+                            <span>Slå upp saknade sändningsdatum och titlar</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Matchar seriens IMDb-/TVDb-ID mot TVmaze (gratis, ingen nyckel). Saknar serien ID används namn + år, och ID:na sparas på serien.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="OmdbApiKey">OMDb API-nyckel (valfri)</label>
+                        <input id="OmdbApiKey" type="text" is="emby-input" autocomplete="off" />
+                        <div class="fieldDescription">IMDb-data via omdbapi.com (gratis nyckel, 1000 uppslag/dag). Används när TVmaze saknar datum och för att fylla i avsnittens IMDb-ID.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="FillMissingMetadata" type="checkbox" is="emby-checkbox" />
+                            <span>Spara hittad metadata på avsnittet</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Sändningsdatum, titel (bara om titeln ser ut som ett filnamn), beskrivning (bara om den saknas) och IMDb-ID. Låsta fält rörs inte.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EstimateMissingDates" type="checkbox" is="emby-checkbox" />
+                            <span>Uppskatta datum när inget hittas</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Närmaste avsnitt i samma säsong, säsongens premiär, avslutade seriers slutdatum, eller utgivningsåret för filmer. Gör att gamla serier utan metadata inte hamnar först.</div>
                     </div>
 
                     <h3 class="sectionTitle">Beteende</h3>
@@ -89,8 +124,10 @@
                     </div>
 
                     <div class="verticalSection">
-                        <p class="fieldDescription">Ursprungliga datum sparas i en backup. Vill du ångra allt: kör
-                        <i>"Återställ ursprungliga 'Date added' (Release Date Added)"</i> under Dashboard → Schemalagda uppgifter.</p>
+                        <p class="fieldDescription">Efter körning finns en rapport över avsnitt som inte gick att matcha i
+                        <code>plugins/configurations/Jellyfin.Plugin.ReleaseDateAdded.report.txt</code> (och i serverloggen).
+                        Ursprungliga datum sparas i en backup. Vill du ångra allt: kör
+                        <i>"Air Date Fixer: återställ ursprungliga 'Date added'"</i> under Dashboard → Schemalagda uppgifter.</p>
                     </div>
 
                     <div>
@@ -108,7 +145,7 @@
             (function () {
                 var pluginId = '28bec86d-d278-4b70-8a9e-20934095496c';
                 var taskKey = 'ReleaseDateAddedFullScan';
-                var fields = ['Enabled', 'EnableEpisodes', 'EnableMovies', 'EnableMusicVideos', 'EnableRealtime', 'KeepTimeOfDay',
+                var fields = ['Enabled', 'EnableEpisodes', 'EnableMovies', 'EnableMusicVideos', 'EnableOtherVideos', 'EnableOnlineLookup', 'FillMissingMetadata', 'EstimateMissingDates', 'EnableRealtime', 'KeepTimeOfDay',
                     'UpdateSeriesDateLastMediaAdded', 'SkipLockedItems', 'UpdateNfoFiles', 'DryRun'];
                 var page = document.querySelector('#ReleaseDateAddedConfigPage');
 
@@ -118,6 +155,7 @@
                         fields.forEach(function (name) {
                             page.querySelector('#' + name).checked = !!config[name];
                         });
+                        page.querySelector('#OmdbApiKey').value = config.OmdbApiKey || '';
                         Dashboard.hideLoadingMsg();
                     });
                 });
@@ -129,6 +167,7 @@
                         fields.forEach(function (name) {
                             config[name] = page.querySelector('#' + name).checked;
                         });
+                        config.OmdbApiKey = page.querySelector('#OmdbApiKey').value.trim();
                         ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
                         });
@@ -146,7 +185,7 @@
                     }).then(function () {
                         Dashboard.alert('Uppgiften är startad. Följ förloppet under Dashboard → Schemalagda uppgifter.');
                     }).catch(function () {
-                        Dashboard.alert('Kunde inte starta uppgiften härifrån. Kör "Sätt \'Date added\' från releasedatum" under Dashboard → Schemalagda uppgifter.');
+                        Dashboard.alert('Kunde inte starta uppgiften härifrån. Kör "Air Date Fixer: sätt \'Date added\' från sändningsdatum" under Dashboard → Schemalagda uppgifter.');
                     });
                 });
             })();

@@ -22,11 +22,11 @@ public class ReleaseDateTask : IScheduledTask
         _service = service;
     }
 
-    public string Name => "Sätt 'Date added' från releasedatum";
+    public string Name => "Air Date Fixer: sätt 'Date added' från sändningsdatum";
 
     public string Key => TaskKey;
 
-    public string Description => "Går igenom filmer/avsnitt och sätter 'Date added' till releasedatumet så att Recently Added sorteras efter release.";
+    public string Description => "Fyller i saknade sändningsdatum (IMDb/TVmaze), uppskattar resten och sätter 'Date added' = sändnings-/releasedatum så att Recently Added sorteras efter release.";
 
     public string Category => "Library";
 

@@ -25,12 +25,12 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     public static Plugin? Instance { get; private set; }
 
-    public override string Name => "Release Date Added";
+    public override string Name => "Air Date and Metadata Fixer";
 
     public override Guid Id => Guid.Parse(PluginGuid);
 
     public override string Description =>
-        "Sätter 'Date added' till releasedatum så att nya avsnitt och filmer hamnar först i Recently Added.";
+        "Sorterar Recently Added efter sändnings-/releasedatum och fyller i saknade sändningsdatum och titlar via IMDb/TVmaze.";
 
     public IEnumerable<PluginPageInfo> GetPages()
     {
@@ -38,7 +38,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         {
             new PluginPageInfo
             {
-                Name = Name,
+                Name = "AirDateMetadataFixer",
+                DisplayName = Name,
                 EmbeddedResourcePath = GetType().Namespace + ".Configuration.configPage.html"
             }
         };

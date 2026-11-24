@@ -3,7 +3,7 @@ using MediaBrowser.Model.Plugins;
 namespace Jellyfin.Plugin.ReleaseDateAdded.Configuration;
 
 /// <summary>
-/// Inställningar för pluginet. Ändras under Dashboard → Plugins → Release Date Added.
+/// Inställningar för pluginet. Ändras under Dashboard → Plugins → Air Date and Metadata Fixer.
 /// </summary>
 public class PluginConfiguration : BasePluginConfiguration
 {
@@ -18,6 +18,24 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Gäller musikvideor.</summary>
     public bool EnableMusicVideos { get; set; } = true;
+
+    /// <summary>Gäller övriga videor (bibliotek av typen blandat innehåll / hemvideor). Extramaterial räknas aldrig.</summary>
+    public bool EnableOtherVideos { get; set; } = true;
+
+    /// <summary>Slå upp saknade sändningsdatum/titlar via seriens IMDb-/TVDb-ID hos TVmaze (gratis).</summary>
+    public bool EnableOnlineLookup { get; set; } = true;
+
+    /// <summary>Valfri OMDb-nyckel (IMDb-data). Gratis på omdbapi.com. Tomt = används inte.</summary>
+    public string OmdbApiKey { get; set; } = string.Empty;
+
+    /// <summary>Spara hittad metadata (datum, titel, beskrivning, IMDb-ID) på avsnittet – inte bara använda datumet för sorteringen.</summary>
+    public bool FillMissingMetadata { get; set; } = true;
+
+    /// <summary>
+    /// Uppskatta datum när inget finns: närmaste avsnitt i säsongen, säsongens premiär,
+    /// avslutade seriers slutdatum, eller utgivningsåret för filmer.
+    /// </summary>
+    public bool EstimateMissingDates { get; set; } = true;
 
     /// <summary>Uppdatera direkt när Jellyfin lägger till/uppdaterar ett objekt (annars bara via schemalagd uppgift).</summary>
     public bool EnableRealtime { get; set; } = true;

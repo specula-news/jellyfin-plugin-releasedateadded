@@ -11,6 +11,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
 {
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
+        serviceCollection.AddSingleton<OnlineEpisodeLookup>();
         serviceCollection.AddSingleton<ReleaseDateService>();
         serviceCollection.AddHostedService<LibraryWatcher>();
     }

@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 namespace Jellyfin.Plugin.ReleaseDateAdded;
 
 /// <summary>
-/// Små hjälpfunktioner utan Jellyfin-beroenden.
+/// Small helper functions without Jellyfin dependencies.
 /// </summary>
 public static class MetadataHeuristics
 {
@@ -16,8 +16,8 @@ public static class MetadataHeuristics
     private static readonly Regex HtmlTag = new("<[^>]+>", RegexOptions.Compiled);
 
     /// <summary>
-    /// Sant om titeln ser ut som ett filnamn (t.ex. "Sister.Wives.S21E06" eller "Temptation.Island"),
-    /// dvs. Jellyfin hittade ingen riktig titel.
+    /// True if the title looks like a file name (e.g. "Sister.Wives.S21E06" or "Temptation.Island"),
+    /// i.e. Jellyfin did not find a real title.
     /// </summary>
     public static bool LooksLikeFileName(string? name, string? path)
     {
@@ -48,7 +48,7 @@ public static class MetadataHeuristics
         return false;
     }
 
-    /// <summary>Normaliserar en titel för jämförelse ("The Traitors (UK)" → "traitorsuk").</summary>
+    /// <summary>Normalizes a title for comparison ("The Traitors (UK)" → "traitorsuk").</summary>
     public static string NormalizeTitle(string? title)
     {
         if (string.IsNullOrWhiteSpace(title))
@@ -74,7 +74,7 @@ public static class MetadataHeuristics
         return sb.ToString();
     }
 
-    /// <summary>Tar bort HTML-taggar (TVmaze-sammanfattningar är HTML).</summary>
+    /// <summary>Removes HTML tags (TVmaze summaries are HTML).</summary>
     public static string? StripHtml(string? html)
     {
         if (string.IsNullOrWhiteSpace(html))
@@ -87,12 +87,12 @@ public static class MetadataHeuristics
         return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 
-    /// <summary>Sant om en titel är en platshållare som "Episode 6" / "Avsnitt 6".</summary>
+    /// <summary>True if a title is a placeholder like "Episode 6".</summary>
     public static bool IsPlaceholderTitle(string? name)
         => string.IsNullOrWhiteSpace(name)
            || Regex.IsMatch(name, @"^(episode|avsnitt|folge|épisode|episodio)\s*\d+$", RegexOptions.IgnoreCase);
 
-    /// <summary>Hämtar ett provider-ID oberoende av skiftläge.</summary>
+    /// <summary>Gets a provider ID case-insensitively.</summary>
     public static string? GetProviderId(System.Collections.Generic.IDictionary<string, string>? ids, string name)
     {
         if (ids is null)

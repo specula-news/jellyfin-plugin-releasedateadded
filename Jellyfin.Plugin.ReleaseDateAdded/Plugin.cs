@@ -9,13 +9,17 @@ using MediaBrowser.Model.Serialization;
 namespace Jellyfin.Plugin.ReleaseDateAdded;
 
 /// <summary>
-/// Sätter "Date added" (DateCreated) till releasedatum (PremiereDate) så att
-/// "Recently added" sorteras efter när något släpptes, inte när filen skapades.
+/// Sets "Date added" (DateCreated) to the air/release date (PremiereDate) so that
+/// "Recently Added" is ordered by release instead of file creation time, and fills in
+/// missing episode air dates and titles using the series' IMDb/TVDb ID.
 /// </summary>
 public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
-    /// <summary>Plugin-ID. Samma som i meta.json och configPage.html.</summary>
+    /// <summary>Plugin ID. Same as in meta.json and configPage.html. Kept from 1.0 so updates work.</summary>
     public const string PluginGuid = "28bec86d-d278-4b70-8a9e-20934095496c";
+
+    /// <summary>Short name used as a prefix in log messages.</summary>
+    public const string LogPrefix = "IMDb Air Date Fixer:";
 
     public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
         : base(applicationPaths, xmlSerializer)
@@ -25,12 +29,12 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     public static Plugin? Instance { get; private set; }
 
-    public override string Name => "Air Date and Metadata Fixer";
+    public override string Name => "IMDb Air Date Fixer";
 
     public override Guid Id => Guid.Parse(PluginGuid);
 
     public override string Description =>
-        "Sorterar Recently Added efter sändnings-/releasedatum och fyller i saknade sändningsdatum och titlar via IMDb/TVmaze.";
+        "Orders Recently Added by air/release date and fills in missing episode air dates and titles via IMDb IDs.";
 
     public IEnumerable<PluginPageInfo> GetPages()
     {
@@ -38,7 +42,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         {
             new PluginPageInfo
             {
-                Name = "AirDateMetadataFixer",
+                Name = "ImdbAirDateFixer",
                 DisplayName = Name,
                 EmbeddedResourcePath = GetType().Namespace + ".Configuration.configPage.html"
             }

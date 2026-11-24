@@ -3,58 +3,67 @@ using MediaBrowser.Model.Plugins;
 namespace Jellyfin.Plugin.ReleaseDateAdded.Configuration;
 
 /// <summary>
-/// Inställningar för pluginet. Ändras under Dashboard → Plugins → Air Date and Metadata Fixer.
+/// Plugin settings. Edited under Dashboard → Plugins → IMDb Air Date Fixer.
 /// </summary>
 public class PluginConfiguration : BasePluginConfiguration
 {
-    /// <summary>Huvudbrytare. Sätts till false av återställningsuppgiften.</summary>
+    /// <summary>Master switch. Turned off automatically by the restore task.</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Gäller filmer.</summary>
+    /// <summary>Apply to movies.</summary>
     public bool EnableMovies { get; set; } = true;
 
-    /// <summary>Gäller TV-avsnitt.</summary>
+    /// <summary>Apply to TV episodes.</summary>
     public bool EnableEpisodes { get; set; } = true;
 
-    /// <summary>Gäller musikvideor.</summary>
+    /// <summary>Apply to music videos.</summary>
     public bool EnableMusicVideos { get; set; } = true;
 
-    /// <summary>Gäller övriga videor (bibliotek av typen blandat innehåll / hemvideor). Extramaterial räknas aldrig.</summary>
+    /// <summary>Apply to other videos (mixed content / home video libraries). Extras are never touched.</summary>
     public bool EnableOtherVideos { get; set; } = true;
 
-    /// <summary>Slå upp saknade sändningsdatum/titlar via seriens IMDb-/TVDb-ID hos TVmaze (gratis).</summary>
+    /// <summary>Look up missing air dates/titles via the series' IMDb/TVDb ID on TVmaze (free, no key).</summary>
     public bool EnableOnlineLookup { get; set; } = true;
 
-    /// <summary>Valfri OMDb-nyckel (IMDb-data). Gratis på omdbapi.com. Tomt = används inte.</summary>
+    /// <summary>Optional OMDb API key (IMDb data). Free at omdbapi.com. Empty = not used.</summary>
     public string OmdbApiKey { get; set; } = string.Empty;
 
-    /// <summary>Spara hittad metadata (datum, titel, beskrivning, IMDb-ID) på avsnittet – inte bara använda datumet för sorteringen.</summary>
+    /// <summary>Save found metadata (air date, title, overview, IMDb ID) on the episode, not just use the date for sorting.</summary>
     public bool FillMissingMetadata { get; set; } = true;
 
     /// <summary>
-    /// Uppskatta datum när inget finns: närmaste avsnitt i säsongen, säsongens premiär,
-    /// avslutade seriers slutdatum, eller utgivningsåret för filmer.
+    /// Estimate a date when none is found: nearest episode in the season, season premiere,
+    /// end date of ended series, or the release year for movies.
     /// </summary>
     public bool EstimateMissingDates { get; set; } = true;
 
-    /// <summary>Uppdatera direkt när Jellyfin lägger till/uppdaterar ett objekt (annars bara via schemalagd uppgift).</summary>
+    /// <summary>
+    /// Items without any date at all get January 1st of their own year or the series' start year
+    /// (or <see cref="FallbackYear"/>), so they never end up first in Recently Added.
+    /// </summary>
+    public bool PushUndatedItemsDown { get; set; } = true;
+
+    /// <summary>Year used when an undated item has no year at all.</summary>
+    public int FallbackYear { get; set; } = 2000;
+
+    /// <summary>React immediately when Jellyfin adds/updates an item (otherwise only via the scheduled task).</summary>
     public bool EnableRealtime { get; set; } = true;
 
     /// <summary>
-    /// Behåll klockslaget från när filen lades till (releasedatum + klockslag).
-    /// Gör att avsnitt som släpps samma dag sorteras i den ordning de laddades ner.
+    /// Keep the time of day from when the file was added (release date + time of day),
+    /// so episodes released on the same day are ordered by download time.
     /// </summary>
     public bool KeepTimeOfDay { get; set; } = true;
 
-    /// <summary>Uppdatera seriens "Date episode added" (DateLastMediaAdded) så den följer avsnittens nya datum.</summary>
+    /// <summary>Update the series' "Date episode added" (DateLastMediaAdded) to follow the episodes' new dates.</summary>
     public bool UpdateSeriesDateLastMediaAdded { get; set; } = true;
 
-    /// <summary>Hoppa över objekt som är låsta i metadata-redigeraren.</summary>
+    /// <summary>Skip items that are locked in the metadata editor.</summary>
     public bool SkipLockedItems { get; set; } = true;
 
-    /// <summary>Skriv även nytt datum till NFO-filer (om NFO-sparning är påslaget för biblioteket).</summary>
+    /// <summary>Also write the new date to NFO files (if NFO saving is enabled for the library).</summary>
     public bool UpdateNfoFiles { get; set; }
 
-    /// <summary>Testläge: logga bara vad som skulle ändras.</summary>
+    /// <summary>Dry run: only log what would change.</summary>
     public bool DryRun { get; set; }
 }

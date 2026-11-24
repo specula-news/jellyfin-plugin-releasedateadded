@@ -7,7 +7,7 @@ using MediaBrowser.Model.Tasks;
 namespace Jellyfin.Plugin.ReleaseDateAdded;
 
 /// <summary>
-/// Manuell uppgift som lägger tillbaka Jellyfins ursprungliga "Date added" och pausar pluginet.
+/// Manual task that puts back Jellyfin's original "Date added" and pauses the plugin.
 /// </summary>
 public class RestoreTask : IScheduledTask
 {
@@ -18,11 +18,11 @@ public class RestoreTask : IScheduledTask
         _service = service;
     }
 
-    public string Name => "Air Date Fixer: återställ ursprungliga 'Date added'";
+    public string Name => "IMDb Air Date Fixer: restore original 'Date added'";
 
     public string Key => "ReleaseDateAddedRestore";
 
-    public string Description => "Lägger tillbaka de datum Jellyfin hade innan pluginet ändrade dem och pausar pluginet. Kör innan du avinstallerar om du vill ha tillbaka gamla sorteringen.";
+    public string Description => "Puts back the dates Jellyfin had before the plugin changed them and pauses the plugin. Run it before uninstalling if you want the old ordering back.";
 
     public string Category => "Library";
 

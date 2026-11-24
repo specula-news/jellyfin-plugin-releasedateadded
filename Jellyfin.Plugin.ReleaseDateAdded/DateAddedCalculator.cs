@@ -3,28 +3,27 @@ using System;
 namespace Jellyfin.Plugin.ReleaseDateAdded;
 
 /// <summary>
-/// Ren logik (utan Jellyfin-beroenden) för att räkna fram nytt "Date added".
+/// Pure logic (no Jellyfin dependencies) that computes the new "Date added".
 /// </summary>
 public static class DateAddedCalculator
 {
-    /// <summary>Skillnader mindre än detta räknas som "redan rätt".</summary>
+    /// <summary>Differences smaller than this count as "already correct".</summary>
     public static readonly TimeSpan Tolerance = TimeSpan.FromSeconds(1);
 
     private static readonly DateTime MinimumSaneDate = new(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     /// <summary>
-    /// Räknar fram nytt DateCreated utifrån releasedatum.
+    /// Computes the new DateCreated from the release date.
     /// </summary>
-    /// <param name="currentDateAdded">Nuvarande DateCreated.</param>
-    /// <param name="releaseDate">PremiereDate från metadata (TMDb/IMDb/TVDb/NFO).</param>
-    /// <param name="utcNow">Aktuell tid (UTC).</param>
-    /// <param name="keepTimeOfDay">Behåll klockslaget från nuvarande DateCreated om releasedatumet saknar klockslag.</param>
-    /// <returns>Nytt datum, eller <c>null</c> om inget ska ändras.</returns>
+    /// <param name="currentDateAdded">Current DateCreated.</param>
+    /// <param name="releaseDate">Air/release date (PremiereDate, looked up, estimated or fallback).</param>
+    /// <param name="utcNow">Current time (UTC).</param>
+    /// <param name="keepTimeOfDay">Keep the time of day from the current DateCreated if the release date has no time.</param>
+    /// <returns>The new date, or <c>null</c> if nothing should change.</returns>
     public static DateTime? CalculateNewDateAdded(DateTime currentDateAdded, DateTime? releaseDate, DateTime utcNow, bool keepTimeOfDay)
     {
         if (!releaseDate.HasValue)
         {
-            // Inget releasedatum i metadatan → låt Jellyfins datum vara.
             return null;
         }
 
@@ -38,8 +37,8 @@ public static class DateAddedCalculator
 
         if (release > now)
         {
-            // Enligt metadatan är det inte släppt än (tidszoner/tidiga släpp).
-            // Behåll Jellyfins datum (= nyss tillagt) tills releasedatumet passerat.
+            // Not released yet according to the metadata (time zones / early releases).
+            // Keep Jellyfin's date (= just added) until the release date has passed.
             return null;
         }
 

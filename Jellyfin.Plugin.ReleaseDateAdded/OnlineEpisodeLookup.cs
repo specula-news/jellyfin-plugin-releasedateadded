@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.ReleaseDateAdded;
 
-/// <summary>Uppgifter om ett avsnitt från TVmaze/OMDb.</summary>
+/// <summary>Episode details from TVmaze/OMDb.</summary>
 public sealed class EpisodeInfo
 {
     public DateTime? AirDate { get; set; }
@@ -28,12 +28,12 @@ public sealed class EpisodeInfo
     public string Source { get; set; } = string.Empty;
 }
 
-/// <summary>Resultat av ett uppslag.</summary>
+/// <summary>Result of a lookup.</summary>
 public sealed class LookupResult
 {
     public EpisodeInfo? Episode { get; set; }
 
-    /// <summary>Förklaring om inget hittades (hamnar i rapporten).</summary>
+    /// <summary>Explanation when nothing was found (goes into the report).</summary>
     public string? Problem { get; set; }
 
     public int? TvMazeShowId { get; set; }
@@ -44,21 +44,21 @@ public sealed class LookupResult
 
     public string? ShowTvdbId { get; set; }
 
-    /// <summary>Serien hittades via namnsökning (hade inga ID:n).</summary>
+    /// <summary>The series was found by name search (it had no IDs).</summary>
     public bool MatchedByName { get; set; }
 }
 
-/// <summary>Seriedata som behövs för uppslag (frikopplat från Jellyfins Series-klass för testbarhet).</summary>
+/// <summary>Series data needed for lookups (decoupled from Jellyfin's Series class for testability).</summary>
 public sealed record SeriesKey(string Name, int? Year, string? ImdbId, string? TvdbId, string? TvMazeId);
 
 /// <summary>
-/// Slår upp saknade sändningsdatum/titlar via seriens IMDb-/TVDb-ID hos TVmaze (gratis, ingen nyckel)
-/// och – om en API-nyckel är angiven – OMDb (IMDb-data).
+/// Looks up missing air dates/titles via the series' IMDb/TVDb ID on TVmaze (free, no key)
+/// and – if an API key is set – OMDb (IMDb data).
 /// </summary>
 public sealed class OnlineEpisodeLookup
 {
-    /// <summary>Namn på HttpClient (kan bytas ut i tester).</summary>
-    public const string HttpClientName = "AirDateFixer";
+    /// <summary>Name of the HttpClient.</summary>
+    public const string HttpClientName = "ImdbAirDateFixer";
 
     private const string TvMaze = "https://api.tvmaze.com";
     private const string Omdb = "https://www.omdbapi.com/";
@@ -78,13 +78,13 @@ public sealed class OnlineEpisodeLookup
         _logger = logger;
     }
 
-    /// <summary>Minsta tid mellan anrop till TVmaze (de tillåter ca 20 anrop per 10 s).</summary>
+    /// <summary>Minimum time between TVmaze requests (they allow about 20 requests per 10 s).</summary>
     public TimeSpan TvMazeInterval { get; set; } = TimeSpan.FromMilliseconds(600);
 
-    /// <summary>Antal HTTP-anrop (för loggning/tester).</summary>
+    /// <summary>Number of HTTP requests (for logging/tests).</summary>
     public int RequestCount { get; private set; }
 
-    /// <summary>Slår upp ett avsnitt.</summary>
+    /// <summary>Looks up an episode.</summary>
     public async Task<LookupResult> FindEpisodeAsync(SeriesKey series, int season, int number, string? omdbApiKey, CancellationToken cancellationToken)
     {
         var result = new LookupResult();
@@ -107,16 +107,16 @@ public sealed class OnlineEpisodeLookup
             {
                 var seasons = episodes.Keys.Select(k => k.Item1).Where(s => s > 0).Distinct().OrderBy(s => s).ToList();
                 result.Problem = seasons.Contains(season)
-                    ? $"S{season:00}E{number:00} finns inte hos TVmaze för \"{show.Name}\" (säsongen har {episodes.Keys.Count(k => k.Item1 == season)} avsnitt) – kontrollera numreringen"
-                    : $"säsong {season} finns inte hos TVmaze för \"{show.Name}\" (har säsong {Describe(seasons)}) – ligger filen i fel serie eller är numreringen annorlunda?";
+                    ? $"S{season:00}E{number:00} does not exist on TVmaze for \"{show.Name}\" (the season has {episodes.Keys.Count(k => k.Item1 == season)} episodes) – check the numbering"
+                    : $"season {season} does not exist on TVmaze for \"{show.Name}\" (it has season {Describe(seasons)}) – is the file in the wrong series, or numbered differently?";
             }
         }
         else
         {
-            result.Problem = $"hittade inte serien \"{series.Name}\" hos TVmaze (saknar IMDb-/TVDb-ID eller okänt namn)";
+            result.Problem = $"series \"{series.Name}\" not found on TVmaze (no IMDb/TVDb ID, or unknown name)";
         }
 
-        // OMDb (IMDb-data) som komplement om nyckel finns.
+        // OMDb (IMDb data) as a complement when a key is set.
         var imdbSeriesId = series.ImdbId ?? show?.ImdbId;
         if (!string.IsNullOrWhiteSpace(omdbApiKey) && !string.IsNullOrWhiteSpace(imdbSeriesId)
             && (result.Episode?.AirDate is null || result.Episode.ImdbId is null))
@@ -147,7 +147,7 @@ public sealed class OnlineEpisodeLookup
     }
 
     private static string Describe(List<int> seasons)
-        => seasons.Count == 0 ? "inga" : seasons.Count == 1 ? seasons[0].ToString(CultureInfo.InvariantCulture) : $"{seasons[0]}–{seasons[^1]}";
+        => seasons.Count == 0 ? "none" : seasons.Count == 1 ? seasons[0].ToString(CultureInfo.InvariantCulture) : $"{seasons[0]}–{seasons[^1]}";
 
     private async Task<ShowData?> FindShowAsync(SeriesKey series, CancellationToken ct)
     {
@@ -187,7 +187,7 @@ public sealed class OnlineEpisodeLookup
             }
             else if (candidate is not null)
             {
-                _logger.LogDebug("Air Date Fixer: namnsökning på \"{Name}\" gav \"{Found}\" ({Year}) – godtas inte.", series.Name, candidate.Name, candidate.PremieredYear);
+                _logger.LogDebug("{Prefix} name search for \"{Name}\" returned \"{Found}\" ({Year}) – not accepted.", Plugin.LogPrefix, series.Name, candidate.Name, candidate.PremieredYear);
             }
         }
 
@@ -195,7 +195,7 @@ public sealed class OnlineEpisodeLookup
         _shows[cacheKey] = (at, show);
         if (show is not null)
         {
-            // Samma serie nås även via sina andra ID:n (som pluginet kan ha sparat på serien).
+            // The same show is also reachable via its other IDs (which the plugin may have saved on the series).
             _shows.TryAdd("tvmaze:" + show.Id.ToString(CultureInfo.InvariantCulture), (at, show));
             if (show.ImdbId is not null)
             {
@@ -211,7 +211,7 @@ public sealed class OnlineEpisodeLookup
         return show;
     }
 
-    /// <summary>Kräver samma normaliserade namn, och samma premiärår (±1) om året är känt.</summary>
+    /// <summary>Requires the same normalized name, and the same premiere year (±1) if the year is known.</summary>
     private static bool IsSameShow(SeriesKey series, ShowData candidate)
     {
         var a = MetadataHeuristics.NormalizeTitle(series.Name);
@@ -295,7 +295,7 @@ public sealed class OnlineEpisodeLookup
         }
         else if (json is JsonElement err && err.ValueKind == JsonValueKind.Object && GetString(err, "Error") is string error)
         {
-            _logger.LogDebug("Air Date Fixer: OMDb svarade \"{Error}\" för {Imdb} säsong {Season}.", error, imdbSeriesId, season);
+            _logger.LogDebug("{Prefix} OMDb answered \"{Error}\" for {Imdb} season {Season}.", Plugin.LogPrefix, error, imdbSeriesId, season);
         }
 
         _omdbSeasons[key] = (DateTime.UtcNow, result);
@@ -316,7 +316,7 @@ public sealed class OnlineEpisodeLookup
                 using var client = _httpClientFactory.CreateClient(HttpClientName);
                 client.Timeout = TimeSpan.FromSeconds(20);
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.TryAddWithoutValidation("User-Agent", "Jellyfin-AirDateMetadataFixer/1.1");
+                request.Headers.TryAddWithoutValidation("User-Agent", "Jellyfin-ImdbAirDateFixer/1.2");
                 request.Headers.TryAddWithoutValidation("Accept", "application/json");
                 RequestCount++;
                 using var response = await client.SendAsync(request, ct).ConfigureAwait(false);
@@ -328,14 +328,14 @@ public sealed class OnlineEpisodeLookup
 
                 if (response.StatusCode == (HttpStatusCode)429 && attempt == 0)
                 {
-                    _logger.LogDebug("Air Date Fixer: TVmaze begränsar anrop, väntar 10 s.");
+                    _logger.LogDebug("{Prefix} TVmaze rate limit hit, waiting 10 s.", Plugin.LogPrefix);
                     await Task.Delay(TimeSpan.FromSeconds(10), ct).ConfigureAwait(false);
                     continue;
                 }
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogDebug("Air Date Fixer: {Status} från {Url}", (int)response.StatusCode, Redact(url));
+                    _logger.LogDebug("{Prefix} {Status} from {Url}", Plugin.LogPrefix, (int)response.StatusCode, Redact(url));
                     return null;
                 }
 
@@ -349,7 +349,7 @@ public sealed class OnlineEpisodeLookup
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "Air Date Fixer: uppslag misslyckades: {Url}", Redact(url));
+                _logger.LogDebug(ex, "{Prefix} lookup failed: {Url}", Plugin.LogPrefix, Redact(url));
                 return null;
             }
         }

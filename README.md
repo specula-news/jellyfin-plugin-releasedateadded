@@ -1,104 +1,108 @@
-# Air Date and Metadata Fixer – Jellyfin-plugin
+# IMDb Air Date Fixer – Jellyfin plugin
 
-*(tidigare "Release Date Added")*
+*(formerly "Release Date Added" / "Air Date and Metadata Fixer")*
 
-Gör att **Recently Added** i Jellyfin sorteras efter **sändnings-/releasedatum** i stället för efter när filen skapades,
-och fyller i **saknade sändningsdatum och titlar** för avsnitt via seriens **IMDb-/TVDb-ID**.
+Orders **Recently Added** in Jellyfin by **air/release date** instead of file creation time, and fills in
+**missing episode air dates and titles** using the series' **IMDb/TVDb ID**.
 
-Kräver **Jellyfin 12.x** (byggd mot 12.0, fungerar på 12.0–12.4).
+Requires **Jellyfin 12.x** (built against 12.0, works on 12.0–12.4).
 
-## Varför gamla serier hamnade först
+## Why old shows ended up first
 
-Jellyfin 12 sorterar *Recently Added* för TV **per serie**, efter det **senaste** datumet bland seriens avsnitt.
-Saknar ett enda avsnitt metadata (titeln blir filnamnet, t.ex. `Sister.Wives.S21E06`) behåller det filens datum,
-och då hamnar hela serien – även en från 2007 – överst. Version 1.1 löser det i tre steg:
+Jellyfin 12 orders TV in *Recently Added* **per series**, by the **newest** date among the series' episodes.
+If a single episode has no metadata (its title becomes the file name, e.g. `Sister.Wives.S21E06`), it keeps
+the file's date – and the whole series, even one from 2007, jumps to the top. The plugin works in four steps:
 
-1. **Jellyfins metadata** (TMDb/TVDb/NFO): finns sändningsdatum används det.
-2. **Uppslag via IMDb/TVmaze**: saknas datum (eller är titeln ett filnamn) slås avsnittet upp via seriens
-   IMDb-/TVDb-ID hos [TVmaze](https://www.tvmaze.com/api) (gratis, ingen nyckel). Med en
-   [OMDb-nyckel](https://www.omdbapi.com/apikey.aspx) (gratis) används även IMDb-data och avsnittens IMDb-ID fylls i.
-   Sändningsdatum, titel, beskrivning och ID:n sparas på avsnittet. Serier utan ID matchas på namn + år
-   och får sina IMDb/TVDb/TVmaze-ID sparade.
-3. **Uppskattning** när inget hittas: närmaste avsnitt i samma säsong → säsongens premiär → tidigare/senare säsonger →
-   avslutade seriers slutdatum. Filmer/videor utan datum får 1 januari utgivningsåret.
+1. **Jellyfin's metadata** (TMDb/TVDb/NFO): if there is an air date, it is used.
+2. **IMDb lookup**: if the air date is missing (or the title is a file name), the episode is looked up via the
+   series' IMDb/TVDb ID on [TVmaze](https://www.tvmaze.com/api) (free, no key). With an
+   [OMDb key](https://www.omdbapi.com/apikey.aspx) (free), IMDb data is used too and episode IMDb IDs are filled in.
+   Air date, title, overview and IDs are saved on the episode. Series without IDs are matched by name + year
+   and get their IMDb/TVDb/TVmaze IDs saved.
+3. **Estimate**: nearest episode in the same season → season premiere → earlier/later seasons →
+   end date of ended series. Movies/videos without a date get January 1st of their release year.
+4. **Older year for everything else**: items with no date at all get January 1st of their own year or the
+   series' start year (fallback 2000), so they **never show up first**. As soon as real metadata appears
+   (Jellyfin refresh, or the nightly task finds it), the item gets its real date.
 
-Hittas inget alls behåller objektet Jellyfins datum (räknas som nytt). De listas i en rapport.
+All undated items are listed in a report so you can fix them.
 
-## Installation (via plugin-repository)
+## Installation (plugin repository)
 
 1. Jellyfin → **Dashboard → Plugins → Repositories → +**
 2. URL:
    ```
    https://raw.githubusercontent.com/specula-news/jellyfin-plugin-releasedateadded/main/manifest.json
    ```
-3. **Catalog** → **Air Date and Metadata Fixer** → **Installera** (eller uppdatera), starta om Jellyfin.
+3. **Catalog** → **IMDb Air Date Fixer** → **Install** (or update), then restart Jellyfin.
 
-Har du redan 1.0 ("Release Date Added") installerad dyker 1.1 upp som uppdatering – samma plugin.
+If an earlier version is installed, this one shows up as an update – it is the same plugin.
 
-### Manuell installation
+### Manual installation
 
-Ladda ner zip-filen från [senaste releasen](https://github.com/specula-news/jellyfin-plugin-releasedateadded/releases/latest)
-och packa upp den i en egen mapp i Jellyfins `plugins`-mapp. Starta om Jellyfin.
+Download the zip from the [latest release](https://github.com/specula-news/jellyfin-plugin-releasedateadded/releases/latest)
+and extract it into its own folder inside Jellyfin's `plugins` folder. Restart Jellyfin.
 
-## Efter installation
+## After installing
 
-1. (Valfritt) Lägg in en OMDb-nyckel i pluginets inställningar.
-2. Klicka **Kör på hela biblioteket nu** (eller kör *Air Date Fixer: sätt 'Date added' från sändningsdatum*
-   under Schemalagda uppgifter). Första körningen tar några minuter på ett stort bibliotek.
-3. Läs sammanfattningen i serverloggen (sök `Air Date Fixer`) och rapporten
+1. (Optional) Add an OMDb API key in the plugin settings.
+2. Click **Run on the whole library now** (or run *IMDb Air Date Fixer: set 'Date added' from air date*
+   under Scheduled Tasks). The first run takes a few minutes on a large library.
+3. Check the summary in the server log (search for `IMDb Air Date Fixer`) and the report
    `plugins/configurations/Jellyfin.Plugin.ReleaseDateAdded.report.txt`.
 
-Nya avsnitt hanteras automatiskt, och uppgiften körs varje natt kl 04:00.
+New episodes are handled automatically, and the task runs every night at 04:00.
 
-### Rapporten
+### The report
 
-Rapporten visar avsnitt som inte gick att få datum för, med orsak, t.ex.:
+The report lists items for which no air date could be found, with the reason and where they were placed, e.g.:
 
 ```
-RuPaul's Drag Race UK S16E16 "RuPauls.Drag.Race.S16E16" – inget datum: säsong 16 finns inte hos TVmaze
-för "RuPaul's Drag Race UK" (har säsong 1–7) – ligger filen i fel serie eller är numreringen annorlunda?
+RuPaul's Drag Race UK S16E16 "RuPauls.Drag.Race.S16E16" – season 16 does not exist on TVmaze for
+"RuPaul's Drag Race UK" (it has season 1–7) – is the file in the wrong series, or numbered differently? → placed at 2019-01-01
 ```
 
-Det betyder oftast att filen ligger i fel serie (här ett avsnitt av amerikanska *RuPaul's Drag Race*) eller att
-Sonarr/TVDb numrerar säsongerna annorlunda än TMDb. Flytta/byt namn på filen, eller ändra seriens
-*Display order* i Jellyfin, och kör uppgiften igen.
+This usually means the file is in the wrong series (here an episode of the American *RuPaul's Drag Race*) or that
+Sonarr/TVDb numbers the seasons differently from TMDb. Move/rename the file or change the series' *Display order*
+in Jellyfin, then run the task again.
 
-## Inställningar
+## Settings
 
-| Inställning | Standard | Beskrivning |
+| Setting | Default | Description |
 |---|---|---|
-| Aktiverad | På | Huvudbrytare |
-| TV-avsnitt / Filmer / Musikvideor / Övriga videor | På | Vilka typer som omfattas (extramaterial rörs aldrig) |
-| Slå upp saknade sändningsdatum och titlar | På | TVmaze via IMDb-/TVDb-ID |
-| OMDb API-nyckel | – | Valfri, ger IMDb-data och avsnittens IMDb-ID |
-| Spara hittad metadata på avsnittet | På | Datum, titel (bara om den ser ut som ett filnamn), beskrivning (bara om den saknas), ID:n. Låsta fält rörs inte |
-| Uppskatta datum när inget hittas | På | Se ovan |
-| Uppdatera direkt | På | Reagerar när Jellyfin läser in/uppdaterar objekt |
-| Behåll klockslaget | På | Releasedag + klockslaget då filen lades till |
-| Uppdatera seriens "Date episode added" | På | |
-| Hoppa över låsta objekt | På | |
-| Skriv även till NFO-filer | Av | |
-| Testläge | Av | Loggar bara, ändrar inget |
+| Enabled | On | Master switch |
+| TV episodes / Movies / Music videos / Other videos | On | Which item types are covered (extras are never touched) |
+| Look up missing air dates and titles | On | TVmaze via IMDb/TVDb ID |
+| OMDb API key | – | Optional, adds IMDb data and episode IMDb IDs |
+| Save found metadata on the episode | On | Air date, title (only if it looks like a file name), overview (only if empty), IDs. Locked fields are never changed |
+| Estimate dates when nothing is found | On | See above |
+| Give items without any date an older year | On | January 1st of their own/series' year |
+| Fallback year | 2000 | Used when there is no year at all |
+| Update immediately | On | Reacts when Jellyfin adds/updates items |
+| Keep the time of day | On | Release day + the time of day the file was added |
+| Update the series' "Date episode added" | On | |
+| Skip locked items | On | |
+| Also write to NFO files | Off | |
+| Dry run | Off | Only logs, changes nothing |
 
-## Bra att veta
+## Good to know
 
-- **Filmer:** TMDb:s premiärdatum är oftast biopremiären, så en film från juni som du laddar ner i oktober får juni.
-- Jellyfin grupperar avsnitt som "lagts till" inom 24 timmar till ett säsongs-/seriekort – med sändningsdatum
-  gäller det avsnitt som sänts samma dygn.
-- Ifylld metadata kan skrivas över av Jellyfin om TMDb senare får bättre data – det är meningen.
+- **Movies:** TMDb's premiere date is usually the theatrical release, so a movie from June downloaded in October gets June.
+- Jellyfin groups episodes "added" within 24 hours into a season/series card – with air dates, that means episodes aired on the same day.
+- Filled-in metadata may later be overwritten by Jellyfin if TMDb gets better data – that is intended.
 
-## Ångra
+## Undo
 
-Ursprungliga *Date added* sparas i `plugins/configurations/Jellyfin.Plugin.ReleaseDateAdded.originaldates.json`.
-Kör **"Air Date Fixer: återställ ursprungliga 'Date added'"** under Schemalagda uppgifter. Datumen läggs tillbaka och
-pluginet pausas. Ifylld metadata (titlar, sändningsdatum) ligger kvar.
+The original *Date added* values are stored in `plugins/configurations/Jellyfin.Plugin.ReleaseDateAdded.originaldates.json`.
+Run **"IMDb Air Date Fixer: restore original 'Date added'"** under Scheduled Tasks. The dates are put back and the
+plugin is paused. Filled-in metadata (titles, air dates) is kept.
 
-## Bygga / släppa ny version
+## Building / releasing a new version
 
-Varje push till `main` bygger pluginet med GitHub Actions mot Jellyfins officiella NuGet-paket. En ny release
-(zip + `manifest.json`) skapas bara när versionen höjs i `build.yaml`, `meta.json` och `AssemblyVersion` i `.csproj`.
+Every push to `main` builds the plugin with GitHub Actions against Jellyfin's official NuGet packages. A new release
+(zip + `manifest.json`) is only created when the version is bumped in `build.yaml`, `meta.json` and `AssemblyVersion` in the `.csproj`.
 
-Lokalt (kräver .NET 10 SDK):
+Locally (requires the .NET 10 SDK):
 
 ```bash
 dotnet build Jellyfin.Plugin.ReleaseDateAdded/Jellyfin.Plugin.ReleaseDateAdded.csproj -c Release -o out

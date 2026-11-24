@@ -4,19 +4,19 @@ using System.Linq;
 
 namespace Jellyfin.Plugin.ReleaseDateAdded;
 
-/// <summary>Säsong, avsnittsnummer och sändningsdatum för ett avsnitt i samma serie.</summary>
+/// <summary>Season, episode number and air date of an episode in the same series.</summary>
 public readonly record struct EpisodeDate(int? Season, int? Number, DateTime? Date);
 
 /// <summary>
-/// Uppskattar ett rimligt releasedatum när metadata saknas helt (ren logik, testbar).
-/// Målet: gamla avsnitt/filmer utan metadata ska inte hamna först i Recently Added.
+/// Estimates a sensible release date when metadata is missing (pure, testable logic).
+/// Goal: old episodes/movies without metadata must not end up first in Recently Added.
 /// </summary>
 public static class DateEstimator
 {
     /// <summary>
-    /// Uppskattar ett avsnitts datum utifrån övriga avsnitt i serien.
+    /// Estimates an episode's date from the other episodes of the series.
     /// </summary>
-    /// <returns>Datum och en kort förklaring, eller (null, null) om inget går att säga – då behandlas avsnittet som nytt.</returns>
+    /// <returns>Date and a short explanation, or (null, null) if nothing can be said.</returns>
     public static (DateTime? Date, string? Reason) EstimateEpisode(
         int? season,
         int? number,
@@ -37,19 +37,19 @@ public static class DateEstimator
                 var prev = dated.Where(x => x.Season == s && x.Number < n).OrderByDescending(x => x.Number).FirstOrDefault();
                 if (prev.Date.HasValue)
                 {
-                    return (prev.Date, $"samma datum som avsnitt {s}x{prev.Number} (föregående)");
+                    return (prev.Date, $"same date as episode {s}x{prev.Number} (previous)");
                 }
 
                 var next = dated.Where(x => x.Season == s && x.Number > n).OrderBy(x => x.Number).FirstOrDefault();
                 if (next.Date.HasValue)
                 {
-                    return (next.Date, $"samma datum som avsnitt {s}x{next.Number} (nästa)");
+                    return (next.Date, $"same date as episode {s}x{next.Number} (next)");
                 }
             }
 
             if (seasonPremiere.HasValue && seasonPremiere.Value <= utcNow)
             {
-                return (seasonPremiere, $"säsong {s}:s premiärdatum");
+                return (seasonPremiere, $"season {s} premiere date");
             }
 
             var laterSeasonDated = dated.Any(x => x.Season > s);
@@ -58,12 +58,12 @@ public static class DateEstimator
                 var earlier = dated.Where(x => x.Season > 0 && x.Season < s).Select(x => x.Date).Max();
                 if (earlier.HasValue)
                 {
-                    return (earlier, "senaste kända avsnitt i tidigare säsong");
+                    return (earlier, "latest known episode of an earlier season");
                 }
 
                 if (laterSeasonDated)
                 {
-                    return (dated.Where(x => x.Season > s).Select(x => x.Date).Min(), "första kända avsnitt i senare säsong");
+                    return (dated.Where(x => x.Season > s).Select(x => x.Date).Min(), "first known episode of a later season");
                 }
             }
         }
@@ -76,14 +76,14 @@ public static class DateEstimator
                       ?? FromYear(seriesYear, utcNow);
             if (end.HasValue && end.Value <= utcNow)
             {
-                return (end, "serien är avslutad");
+                return (end, "series has ended");
             }
         }
 
         return (null, null);
     }
 
-    /// <summary>1 januari utgivningsåret, men bara för år före innevarande (innevarande år räknas som nytt).</summary>
+    /// <summary>January 1st of the release year, but only for years before the current one.</summary>
     public static DateTime? FromYear(int? year, DateTime utcNow)
     {
         if (year is int y && y >= 1900 && y < utcNow.Year)
@@ -92,5 +92,27 @@ public static class DateEstimator
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Last resort for items with no date at all: January 1st of the item's own year, otherwise the series'
+    /// start year, otherwise <paramref name="fallbackYear"/>. Never in the future.
+    /// </summary>
+    public static (DateTime Date, string Reason) Fallback(int? itemYear, int? seriesYear, int fallbackYear, DateTime utcNow)
+    {
+        static bool Valid(int? y, DateTime now) => y is int v && v >= 1900 && v <= now.Year;
+
+        if (Valid(itemYear, utcNow))
+        {
+            return (new DateTime(itemYear!.Value, 1, 1, 0, 0, 0, DateTimeKind.Utc), $"no date found, using its year {itemYear}");
+        }
+
+        if (Valid(seriesYear, utcNow))
+        {
+            return (new DateTime(seriesYear!.Value, 1, 1, 0, 0, 0, DateTimeKind.Utc), $"no date found, using the series' start year {seriesYear}");
+        }
+
+        var y = Valid(fallbackYear, utcNow) ? fallbackYear : 2000;
+        return (new DateTime(y, 1, 1, 0, 0, 0, DateTimeKind.Utc), $"no date or year found, using {y}");
     }
 }

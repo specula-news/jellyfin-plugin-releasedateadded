@@ -7,9 +7,9 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.ReleaseDateAdded;
 
 /// <summary>
-/// Sparar Jellyfins ursprungliga "Date added" innan pluginet ändrar det,
-/// så att allt kan återställas med uppgiften "Återställ ursprungliga 'Date added'".
-/// Filen ligger bredvid pluginets inställningsfil (plugins/configurations/).
+/// Stores Jellyfin's original "Date added" before the plugin changes it,
+/// so everything can be undone with the "restore original 'Date added'" task.
+/// The file lives next to the plugin's settings file (plugins/configurations/).
 /// </summary>
 public sealed class OriginalDateStore
 {
@@ -27,17 +27,17 @@ public sealed class OriginalDateStore
         _logger = logger;
     }
 
-    /// <summary>Datum före och efter pluginets ändring.</summary>
+    /// <summary>Date before and after the plugin's change.</summary>
     public sealed class Entry
     {
-        /// <summary>Jellyfins eget datum (filskapning/skanning/NFO).</summary>
+        /// <summary>Jellyfin's own date (file creation/scan/NFO).</summary>
         public DateTime Original { get; set; }
 
-        /// <summary>Datumet pluginet satte.</summary>
+        /// <summary>The date the plugin set.</summary>
         public DateTime Applied { get; set; }
     }
 
-    /// <summary>Noterar en ändring. Om objektet redan har vårt datum behålls det ursprungliga.</summary>
+    /// <summary>Records a change. If the item already has our date, the original is kept.</summary>
     public void Record(Guid itemId, DateTime oldValue, DateTime newValue)
     {
         lock (_lock)
@@ -45,7 +45,7 @@ public sealed class OriginalDateStore
             var entries = Load();
             if (entries.TryGetValue(itemId, out var existing) && (existing.Applied - oldValue).Duration() < Tolerance)
             {
-                // Vi justerar vårt eget tidigare värde – originalet är oförändrat.
+                // We are adjusting our own earlier value – the original is unchanged.
                 existing.Applied = newValue;
             }
             else
@@ -57,7 +57,7 @@ public sealed class OriginalDateStore
         }
     }
 
-    /// <summary>Kopia av alla poster.</summary>
+    /// <summary>Copy of all entries.</summary>
     public List<KeyValuePair<Guid, Entry>> Snapshot()
     {
         lock (_lock)
@@ -66,7 +66,7 @@ public sealed class OriginalDateStore
         }
     }
 
-    /// <summary>Tar bort en post.</summary>
+    /// <summary>Removes an entry.</summary>
     public void Remove(Guid itemId)
     {
         lock (_lock)
@@ -78,7 +78,7 @@ public sealed class OriginalDateStore
         }
     }
 
-    /// <summary>Skriver till disk om något ändrats.</summary>
+    /// <summary>Writes to disk if anything changed.</summary>
     public void Flush()
     {
         lock (_lock)
@@ -99,7 +99,7 @@ public sealed class OriginalDateStore
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Air Date Fixer: kunde inte spara backup av ursprungliga datum.");
+                _logger.LogError(ex, "{Prefix} could not save the backup of original dates.", Plugin.LogPrefix);
             }
         }
     }
@@ -126,7 +126,7 @@ public sealed class OriginalDateStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Air Date Fixer: kunde inte läsa backup av ursprungliga datum.");
+            _logger.LogError(ex, "{Prefix} could not read the backup of original dates.", Plugin.LogPrefix);
         }
 
         return _entries;

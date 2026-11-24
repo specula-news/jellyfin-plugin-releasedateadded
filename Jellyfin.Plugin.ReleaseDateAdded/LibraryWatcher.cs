@@ -10,12 +10,12 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.ReleaseDateAdded;
 
 /// <summary>
-/// Lyssnar på ItemAdded/ItemUpdated. När Jellyfin har hämtat metadata (och därmed releasedatum)
-/// för ett nytt avsnitt/film läggs det i en kö och får sitt "Date added" satt till releasedatumet.
+/// Listens to ItemAdded/ItemUpdated. When Jellyfin has fetched metadata (and with it the air date)
+/// for a new episode/movie, the item is queued and gets its "Date added" set to the air/release date.
 /// </summary>
 public sealed class LibraryWatcher : IHostedService, IDisposable
 {
-    /// <summary>Väntetid så att biblioteksskanning/metadatahämtning hinner bli klar innan vi rör objektet.</summary>
+    /// <summary>Delay so the library scan/metadata refresh can finish before the item is touched.</summary>
     private static readonly TimeSpan DebounceDelay = TimeSpan.FromSeconds(5);
 
     private readonly ILibraryManager _libraryManager;
@@ -41,7 +41,7 @@ public sealed class LibraryWatcher : IHostedService, IDisposable
         _libraryManager.ItemAdded += OnItemChanged;
         _libraryManager.ItemUpdated += OnItemChanged;
 
-        _logger.LogInformation("Air Date Fixer: bevakar biblioteket.");
+        _logger.LogInformation("{Prefix} watching the library.", Plugin.LogPrefix);
         return Task.CompletedTask;
     }
 
@@ -61,7 +61,7 @@ public sealed class LibraryWatcher : IHostedService, IDisposable
             }
             catch (OperationCanceledException)
             {
-                // Avstängning.
+                // Shutting down.
             }
         }
     }
@@ -89,7 +89,7 @@ public sealed class LibraryWatcher : IHostedService, IDisposable
 
             if (_service.IsOwnWrite(item.Id))
             {
-                // Vår egen sparning – ignorera för att undvika loop.
+                // Our own save – ignore it to avoid a loop.
                 return;
             }
 
@@ -97,7 +97,7 @@ public sealed class LibraryWatcher : IHostedService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Air Date Fixer: fel i event-hanteraren.");
+            _logger.LogError(ex, "{Prefix} error in the event handler.", Plugin.LogPrefix);
         }
     }
 
@@ -130,13 +130,13 @@ public sealed class LibraryWatcher : IHostedService, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Air Date Fixer: kunde inte uppdatera {Count} objekt.", batch.Count);
+                    _logger.LogError(ex, "{Prefix} could not update {Count} items.", Plugin.LogPrefix, batch.Count);
                 }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Avstängning.
+            // Shutting down.
         }
     }
 }

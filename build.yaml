@@ -1,15 +1,16 @@
 ---
-name: "Air Date and Metadata Fixer"
+name: "IMDb Air Date Fixer"
 guid: "28bec86d-d278-4b70-8a9e-20934095496c"
-version: "1.1.0.0"
+version: "1.2.0.0"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
-overview: "Recently Added efter sändningsdatum + saknad metadata via IMDb/TVmaze"
+overview: "Recently Added ordered by air date, plus missing air dates and titles via IMDb IDs"
 description: >
-  Sätter 'Date added' till releasedatum för avsnitt, filmer och musikvideor.
+  Sets 'Date added' to the air/release date, fills in missing episode air dates and titles
+  via the series' IMDb/TVDb ID, and gives undated items an older year so they never show up first.
 category: "General"
-owner: "Ermin"
+owner: "specula-news"
 artifacts:
 - "Jellyfin.Plugin.ReleaseDateAdded.dll"
 changelog: >
-  1.1.0: Nytt namn, uppslag av saknade sändningsdatum via IMDb/TVmaze, uppskattade datum, rapport.
+  1.2.0: Renamed to IMDb Air Date Fixer, English UI, undated items get their own/series year.

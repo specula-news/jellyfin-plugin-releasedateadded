@@ -21,10 +21,10 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build (mot Jellyfin.Controller från NuGet)
+      - name: Build (against Jellyfin.Controller from NuGet)
         run: dotnet build Jellyfin.Plugin.ReleaseDateAdded/Jellyfin.Plugin.ReleaseDateAdded.csproj -c Release -o out
 
-      - name: Finns versionen redan som release?
+      - name: Is this version already released?
         id: check
         env:
           GH_TOKEN: ${{ github.token }}
@@ -32,7 +32,7 @@ jobs:
           VERSION=$(sed -nE 's/^version: *"?([^"]+)"?.*/\1/p' build.yaml)
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::v$VERSION finns redan. Höj version i build.yaml, meta.json och .csproj för att släppa en ny."
+            echo "::notice::v$VERSION is already released. Bump the version in build.yaml, meta.json and the .csproj to release a new one."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -43,7 +43,7 @@ jobs:
         run: |
           VERSION=$(sed -nE 's/^version: *"?([^"]+)"?.*/\1/p' build.yaml)
           TARGET_ABI=$(sed -nE 's/^targetAbi: *"?([^"]+)"?.*/\1/p' build.yaml)
-          ZIP="release-date-added_${VERSION}.zip"
+          ZIP="imdb-air-date-fixer_${VERSION}.zip"
           mkdir -p pkg
           cp out/Jellyfin.Plugin.ReleaseDateAdded.dll meta.json pkg/
           (cd pkg && zip -X -q "../$ZIP" ./*)
@@ -58,7 +58,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: v${{ steps.pkg.outputs.version }}
           ZIP: ${{ steps.pkg.outputs.zip }}
-        run: gh release create "$TAG" "$ZIP" --title "Release Date Added $TAG" --notes "Byggd automatiskt mot Jellyfin 12.x."
+        run: gh release create "$TAG" "$ZIP" --title "IMDb Air Date Fixer $TAG" --notes "Built automatically against Jellyfin 12.x."
 
       - name: Update manifest.json
         if: steps.check.outputs.exists == 'false'
@@ -98,6 +98,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add manifest.json
           if ! git diff --cached --quiet; then
-            git commit -m "Uppdatera manifest.json för v${VERSION} [skip ci]"
+            git commit -m "Update manifest.json for v${VERSION} [skip ci]"
             git push
           fi

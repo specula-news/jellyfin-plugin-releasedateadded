@@ -17,40 +17,43 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.ReleaseDateAdded;
 
-/// <summary>Resultat för ett enskilt objekt.</summary>
+/// <summary>Result for a single item.</summary>
 public enum ApplyResult
 {
-    /// <summary>Objekttypen är avstängd, virtuell, ett extramaterial eller låst.</summary>
+    /// <summary>Item type disabled, virtual, an extra, or locked.</summary>
     Skipped,
 
-    /// <summary>Redan rätt datum, eller inget datum gick att få fram.</summary>
+    /// <summary>Date already correct, or no date could be determined.</summary>
     Unchanged,
 
-    /// <summary>Datum och/eller metadata uppdaterades.</summary>
+    /// <summary>Date and/or metadata was updated.</summary>
     Changed,
 
-    /// <summary>Testläge: skulle ha uppdaterats.</summary>
+    /// <summary>Dry run: would have been updated.</summary>
     WouldChange
 }
 
-/// <summary>Varifrån datumet kom.</summary>
+/// <summary>Where the date came from.</summary>
 public enum DateSource
 {
-    /// <summary>Inget datum.</summary>
+    /// <summary>No date.</summary>
     None,
 
-    /// <summary>Jellyfins egen metadata (TMDb/TVDb/NFO …).</summary>
+    /// <summary>Jellyfin's own metadata (TMDb/TVDb/NFO …).</summary>
     Metadata,
 
-    /// <summary>Uppslag via IMDb-/TVDb-ID hos TVmaze/OMDb.</summary>
+    /// <summary>Lookup via IMDb/TVDb ID on TVmaze/OMDb.</summary>
     Online,
 
-    /// <summary>Uppskattat från andra avsnitt eller utgivningsår.</summary>
-    Estimated
+    /// <summary>Estimated from other episodes or the release year.</summary>
+    Estimated,
+
+    /// <summary>No date anywhere: January 1st of the item's/series' year (or the fallback year).</summary>
+    Fallback
 }
 
 /// <summary>
-/// Gemensam logik för realtidsbevakning och schemalagd uppgift.
+/// Shared logic for the real-time watcher and the scheduled task.
 /// </summary>
 public sealed class ReleaseDateService
 {
@@ -71,13 +74,13 @@ public sealed class ReleaseDateService
         _store = new OriginalDateStore(logger);
     }
 
-    /// <summary>Aktuell konfiguration.</summary>
+    /// <summary>Current configuration.</summary>
     public static PluginConfiguration Config => Plugin.Instance?.Configuration ?? new PluginConfiguration();
 
-    /// <summary>Sant medan pluginet självt sparar objektet (för att ignorera sitt eget ItemUpdated-event).</summary>
+    /// <summary>True while the plugin itself saves the item (to ignore its own ItemUpdated event).</summary>
     public bool IsOwnWrite(Guid itemId) => _ownWrites.ContainsKey(itemId);
 
-    /// <summary>Om objekttypen omfattas enligt inställningarna.</summary>
+    /// <summary>Whether the item type is covered by the settings.</summary>
     public static bool IsSupported(BaseItem item, PluginConfiguration config) => item switch
     {
         Episode => config.EnableEpisodes,
@@ -87,7 +90,7 @@ public sealed class ReleaseDateService
         _ => false
     };
 
-    /// <summary>Bearbetar en mängd objekt (används av realtidsbevakningen).</summary>
+    /// <summary>Processes a set of items (used by the real-time watcher).</summary>
     public async Task ProcessItemsAsync(IReadOnlyCollection<Guid> itemIds, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -118,7 +121,7 @@ public sealed class ReleaseDateService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Air Date Fixer: kunde inte uppdatera {Name} ({Path})", item.Name, item.Path);
+                    _logger.LogWarning(ex, "{Prefix} could not update {Name} ({Path})", Plugin.LogPrefix, item.Name, item.Path);
                 }
             }
 
@@ -130,7 +133,7 @@ public sealed class ReleaseDateService
         }
     }
 
-    /// <summary>Går igenom hela biblioteket (används av den schemalagda uppgiften).</summary>
+    /// <summary>Processes the whole library (used by the scheduled task).</summary>
     public async Task ProcessLibraryAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -140,7 +143,7 @@ public sealed class ReleaseDateService
             var config = ctx.Config;
             if (!config.Enabled)
             {
-                _logger.LogInformation("Air Date Fixer: pluginet är pausat (se inställningarna), inget att göra.");
+                _logger.LogInformation("{Prefix} the plugin is paused (see settings), nothing to do.", Plugin.LogPrefix);
                 progress.Report(100);
                 return;
             }
@@ -168,7 +171,7 @@ public sealed class ReleaseDateService
 
             if (kinds.Count == 0)
             {
-                _logger.LogInformation("Air Date Fixer: inga objekttyper är aktiverade, inget att göra.");
+                _logger.LogInformation("{Prefix} no item types are enabled, nothing to do.", Plugin.LogPrefix);
                 progress.Report(100);
                 return;
             }
@@ -181,13 +184,13 @@ public sealed class ReleaseDateService
                 GroupByPresentationUniqueKey = false
             });
 
-            _logger.LogInformation("Air Date Fixer: kontrollerar {Count} objekt.", ids.Count);
+            _logger.LogInformation("{Prefix} checking {Count} items.", Plugin.LogPrefix, ids.Count);
 
             for (var i = 0; i < ids.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // GetItemById ger Jellyfins egen (cachade) instans, så att ändringen inte skrivs över av en gammal kopia.
+                // GetItemById returns Jellyfin's own (cached) instance, so the change is not overwritten by a stale copy.
                 var item = _libraryManager.GetItemById(ids[i]);
                 if (item is not null)
                 {
@@ -202,7 +205,7 @@ public sealed class ReleaseDateService
                     catch (Exception ex)
                     {
                         ctx.Errors++;
-                        _logger.LogWarning(ex, "Air Date Fixer: kunde inte uppdatera {Name} ({Path})", item.Name, item.Path);
+                        _logger.LogWarning(ex, "{Prefix} could not update {Name} ({Path})", Plugin.LogPrefix, item.Name, item.Path);
                     }
                 }
 
@@ -222,7 +225,7 @@ public sealed class ReleaseDateService
         }
     }
 
-    /// <summary>Sätter rätt "Date added" för ett objekt, och fyller i saknad avsnittsmetadata.</summary>
+    /// <summary>Sets the correct "Date added" for an item and fills in missing episode metadata.</summary>
     internal async Task<ApplyResult> ApplyAsync(BaseItem item, RunContext ctx, CancellationToken cancellationToken)
     {
         var config = ctx.Config;
@@ -245,7 +248,7 @@ public sealed class ReleaseDateService
         string? reason = null;
         var filled = new List<string>();
 
-        // 1. Avsnitt utan sändningsdatum eller med filnamn som titel: slå upp via IMDb-/TVDb-ID.
+        // 1. Episodes without an air date, or with a file name as title: look up via IMDb/TVDb ID.
         if (item is Episode episode && config.EnableOnlineLookup
             && (!release.HasValue || (config.FillMissingMetadata && MetadataHeuristics.LooksLikeFileName(episode.Name, episode.Path))))
         {
@@ -270,7 +273,7 @@ public sealed class ReleaseDateService
             }
         }
 
-        // 2. Fortfarande inget datum: uppskatta.
+        // 2. Still no date: estimate.
         if (!release.HasValue && config.EstimateMissingDates)
         {
             var (estimate, why) = Estimate(item, ctx, now);
@@ -282,10 +285,23 @@ public sealed class ReleaseDateService
             }
         }
 
+        // 3. No date anywhere: use the item's/series' year so it never ends up first.
         if (!release.HasValue)
         {
             ctx.NoDate++;
-            ctx.AddReport(Describe(item, ctx) + " – inget datum" + (reason is null ? string.Empty : ": " + reason));
+            var problem = reason;
+            if (config.PushUndatedItemsDown)
+            {
+                var seriesYear = item is Episode undatedEpisode ? SeriesYear(GetSeries(undatedEpisode, ctx)) : null;
+                var (fallback, why) = DateEstimator.Fallback(item.ProductionYear, seriesYear, config.FallbackYear, now);
+                release = fallback;
+                source = DateSource.Fallback;
+                reason = why;
+            }
+
+            ctx.AddReport(Describe(item, ctx)
+                + (problem is null ? " – no air date found" : " – " + problem)
+                + (source == DateSource.Fallback ? $" → placed at {release:yyyy-MM-dd}" : " → treated as new"));
         }
 
         var newDate = release.HasValue
@@ -301,13 +317,13 @@ public sealed class ReleaseDateService
         if (config.DryRun)
         {
             _logger.LogInformation(
-                "[Testläge] {Item}: Date added {Old:yyyy-MM-dd HH:mm} → {New} ({Source}{Reason}){Filled}",
+                "[Dry run] {Item}: Date added {Old:yyyy-MM-dd HH:mm} → {New} ({Source}{Reason}){Filled}",
                 Describe(item, ctx),
                 oldDate,
-                newDate.HasValue ? newDate.Value.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) : "oförändrat",
+                newDate.HasValue ? newDate.Value.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) : "unchanged",
                 source,
                 reason is null ? string.Empty : ": " + reason,
-                filled.Count == 0 ? string.Empty : " – skulle fylla i " + string.Join(", ", filled));
+                filled.Count == 0 ? string.Empty : " – would fill in " + string.Join(", ", filled));
             if (newDate.HasValue)
             {
                 ctx.Count(source);
@@ -356,13 +372,13 @@ public sealed class ReleaseDateService
             ctx.MetadataFilled++;
         }
 
-        if (source == DateSource.Estimated || filled.Count > 0)
+        if (source is DateSource.Estimated or DateSource.Fallback || filled.Count > 0)
         {
             _logger.LogDebug(
                 "{Item}: Date added {Old:yyyy-MM-dd} → {New} ({Source}: {Reason}) {Filled}",
                 Describe(item, ctx),
                 oldDate,
-                newDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "oförändrat",
+                newDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "unchanged",
                 source,
                 reason,
                 string.Join(", ", filled));
@@ -372,8 +388,8 @@ public sealed class ReleaseDateService
     }
 
     /// <summary>
-    /// Lägger tillbaka Jellyfins ursprungliga datum och pausar pluginet (Enabled = false).
-    /// Ifylld metadata (titlar/datum) ligger kvar.
+    /// Puts back Jellyfin's original dates and pauses the plugin (Enabled = false).
+    /// Filled-in metadata (titles/air dates) is kept.
     /// </summary>
     public async Task RestoreAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
@@ -385,7 +401,7 @@ public sealed class ReleaseDateService
             {
                 plugin.Configuration.Enabled = false;
                 plugin.SaveConfiguration();
-                _logger.LogInformation("Air Date Fixer: pluginet pausas (Enabled = false) innan återställning.");
+                _logger.LogInformation("{Prefix} pausing the plugin (Enabled = false) before restoring.", Plugin.LogPrefix);
             }
 
             var config = Config;
@@ -434,7 +450,8 @@ public sealed class ReleaseDateService
             _store.Flush();
             await UpdateSeriesAsync(ctx.SeriesToUpdate, cancellationToken).ConfigureAwait(false);
             _logger.LogInformation(
-                "Air Date Fixer: återställde {Restored} objekt ({Untouched} var borttagna eller ändrade av annat och lämnades). Pluginet är pausat.",
+                "{Prefix} restored {Restored} items ({Untouched} were removed or changed by something else and left alone). The plugin is paused.",
+                Plugin.LogPrefix,
                 restored,
                 untouched);
             progress.Report(100);
@@ -468,7 +485,7 @@ public sealed class ReleaseDateService
         var result = await _lookup.FindEpisodeAsync(key, season, number, ctx.Config.OmdbApiKey, cancellationToken).ConfigureAwait(false);
         ctx.Lookups++;
 
-        // Bättre matchning framåt: spara seriens IMDb/TVDb/TVmaze-ID om de saknas.
+        // Better matching from now on: save the series' IMDb/TVDb/TVmaze IDs if missing.
         if (ctx.Config.FillMissingMetadata && !ctx.Config.DryRun && result.TvMazeShowId.HasValue)
         {
             ctx.SeriesIdFills[series.Id] = result;
@@ -488,7 +505,7 @@ public sealed class ReleaseDateService
 
         if (!episode.PremiereDate.HasValue && info.AirDate.HasValue)
         {
-            filled.Add("sändningsdatum " + info.AirDate.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+            filled.Add("air date " + info.AirDate.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
             if (!dryRun)
             {
                 episode.PremiereDate = info.AirDate;
@@ -498,7 +515,7 @@ public sealed class ReleaseDateService
 
         if (!string.IsNullOrWhiteSpace(info.Name) && MetadataHeuristics.LooksLikeFileName(episode.Name, episode.Path) && !locked.Contains(MetadataField.Name))
         {
-            filled.Add("titel \"" + info.Name + "\"");
+            filled.Add("title \"" + info.Name + "\"");
             if (!dryRun)
             {
                 episode.Name = info.Name!;
@@ -507,7 +524,7 @@ public sealed class ReleaseDateService
 
         if (string.IsNullOrWhiteSpace(episode.Overview) && !string.IsNullOrWhiteSpace(info.Overview) && !locked.Contains(MetadataField.Overview))
         {
-            filled.Add("beskrivning");
+            filled.Add("overview");
             if (!dryRun)
             {
                 episode.Overview = info.Overview!;
@@ -518,17 +535,17 @@ public sealed class ReleaseDateService
         {
             if (info.ImdbId is not null && MetadataHeuristics.GetProviderId(episode.ProviderIds, "Imdb") is null)
             {
-                filled.Add("IMDb-ID " + info.ImdbId);
+                filled.Add("IMDb ID " + info.ImdbId);
                 if (!dryRun)
                 {
                     episode.ProviderIds["Imdb"] = info.ImdbId;
                 }
             }
 
-            // TVmaze-ID sparas bara tillsammans med annan ifylld metadata (ingen egen skrivning bara för ID:t).
+            // The TVmaze ID is only saved together with other filled metadata (no separate write just for the ID).
             if (filled.Count > 0 && info.TvMazeId is not null && MetadataHeuristics.GetProviderId(episode.ProviderIds, "TvMaze") is null)
             {
-                filled.Add("TVmaze-ID");
+                filled.Add("TVmaze ID");
                 if (!dryRun)
                 {
                     episode.ProviderIds["TvMaze"] = info.TvMazeId;
@@ -542,7 +559,7 @@ public sealed class ReleaseDateService
         if (item is not Episode episode)
         {
             var fromYear = DateEstimator.FromYear(item.ProductionYear, now);
-            return fromYear.HasValue ? (fromYear, $"utgivningsår {item.ProductionYear}") : (null, null);
+            return fromYear.HasValue ? (fromYear, $"release year {item.ProductionYear}") : (null, null);
         }
 
         var series = GetSeries(episode, ctx);
@@ -553,7 +570,7 @@ public sealed class ReleaseDateService
 
         if (!ctx.SeriesEpisodes.TryGetValue(series.Id, out var siblings))
         {
-            // Även virtuella (saknade) avsnitt har ofta datum från TMDb – bra underlag.
+            // Virtual (missing) episodes often have dates from TMDb too – useful input.
             siblings = _libraryManager.GetItemList(new InternalItemsQuery
             {
                 AncestorIds = new[] { series.Id },
@@ -593,6 +610,9 @@ public sealed class ReleaseDateService
         return series;
     }
 
+    private static int? SeriesYear(Series? series)
+        => series?.ProductionYear ?? series?.PremiereDate?.Year;
+
     private static Guid SeriesIdOf(Episode episode)
     {
         var id = episode.SeriesId;
@@ -627,14 +647,16 @@ public sealed class ReleaseDateService
         {
             var reportPath = WriteReport(ctx);
             _logger.LogInformation(
-                "Air Date Fixer: klart. {Changed} {Verb} (från metadata {Meta}, IMDb/TVmaze {Online}, uppskattade {Estimated}), " +
-                "{Filled} avsnitt fick saknad metadata, {Unchanged} redan rätt, {NoDate} utan datum (behandlas som nya), {Skipped} överhoppade, {Errors} fel. " +
-                "{Lookups} uppslag ({Misses} utan träff, {Requests} anrop). Rapport: {Report}",
+                "{Prefix} done. {Changed} {Verb} (from metadata {Meta}, IMDb/TVmaze {Online}, estimated {Estimated}, fallback year {Fallback}), " +
+                "{Filled} episodes got missing metadata, {Unchanged} already correct, {NoDate} without any air date, {Skipped} skipped, {Errors} errors. " +
+                "{Lookups} lookups ({Misses} without match, {Requests} requests). Report: {Report}",
+                Plugin.LogPrefix,
                 ctx.ChangedTotal,
-                ctx.Config.DryRun ? "skulle ändras (testläge)" : "ändrade",
+                ctx.Config.DryRun ? "would change (dry run)" : "changed",
                 ctx.FromMetadata,
                 ctx.FromOnline,
                 ctx.FromEstimate,
+                ctx.FromFallback,
                 ctx.MetadataFilled,
                 ctx.Unchanged,
                 ctx.NoDate,
@@ -647,7 +669,7 @@ public sealed class ReleaseDateService
 
             foreach (var line in ctx.Report.Take(25))
             {
-                _logger.LogInformation("Air Date Fixer: {Line}", line);
+                _logger.LogInformation("{Prefix} {Line}", Plugin.LogPrefix, line);
             }
         }
     }
@@ -688,16 +710,17 @@ public sealed class ReleaseDateService
                 }
 
                 _logger.LogInformation(
-                    "Air Date Fixer: serien \"{Name}\" fick {Ids}{How}.",
+                    "{Prefix} series \"{Name}\" got {Ids}{How}.",
+                    Plugin.LogPrefix,
                     series.Name,
                     string.Join(", ", changed),
-                    result.MatchedByName ? " (matchad på namn – kör \"Uppdatera metadata\" på serien så hämtar Jellyfin resten)" : string.Empty);
+                    result.MatchedByName ? " (matched by name – run \"Refresh metadata\" on the series to let Jellyfin fetch the rest)" : string.Empty);
             }
         }
     }
 
     /// <summary>
-    /// Räknar om seriens DateLastMediaAdded (= senaste avsnittets DateCreated), på samma sätt som Jellyfin gör.
+    /// Recomputes the series' DateLastMediaAdded (= newest episode DateCreated), the same way Jellyfin does.
     /// </summary>
     private async Task UpdateSeriesAsync(IEnumerable<Guid> seriesIds, CancellationToken cancellationToken)
     {
@@ -754,9 +777,9 @@ public sealed class ReleaseDateService
             var folder = string.IsNullOrEmpty(configFile) ? Path.GetTempPath() : Path.GetDirectoryName(configFile)!;
             var path = Path.Combine(folder, "Jellyfin.Plugin.ReleaseDateAdded.report.txt");
             var sb = new StringBuilder();
-            sb.AppendLine("Air Date and Metadata Fixer – rapport " + DateTime.Now.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture));
-            sb.AppendLine("Objekt som saknar sändnings-/releasedatum. De behåller Jellyfins datum och räknas som nya.");
-            sb.AppendLine("Vanliga orsaker: filen ligger i fel serie, annan säsongsnumrering än TMDb/TVmaze, eller serien saknar IMDb-ID.");
+            sb.AppendLine("IMDb Air Date Fixer – report " + DateTime.Now.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture));
+            sb.AppendLine("Items without an air/release date. They were placed at January 1st of their own year or the series' start year so they don't show up first.");
+            sb.AppendLine("Common causes: the file is in the wrong series, season numbering differs from TMDb/TVmaze, or the series has no IMDb ID.");
             sb.AppendLine();
             foreach (var line in ctx.Report.OrderBy(l => l, StringComparer.OrdinalIgnoreCase))
             {
@@ -765,7 +788,7 @@ public sealed class ReleaseDateService
 
             if (ctx.ReportTruncated > 0)
             {
-                sb.AppendLine($"… och {ctx.ReportTruncated} till.");
+                sb.AppendLine($"… and {ctx.ReportTruncated} more.");
             }
 
             Directory.CreateDirectory(folder);
@@ -774,12 +797,12 @@ public sealed class ReleaseDateService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Air Date Fixer: kunde inte skriva rapporten.");
+            _logger.LogWarning(ex, "{Prefix} could not write the report.", Plugin.LogPrefix);
             return null;
         }
     }
 
-    /// <summary>Tillstånd för en körning.</summary>
+    /// <summary>State for one run.</summary>
     internal sealed class RunContext
     {
         public RunContext(PluginConfiguration config)
@@ -821,7 +844,9 @@ public sealed class ReleaseDateService
 
         public int FromEstimate { get; set; }
 
-        public int ChangedTotal => FromMetadata + FromOnline + FromEstimate;
+        public int FromFallback { get; set; }
+
+        public int ChangedTotal => FromMetadata + FromOnline + FromEstimate + FromFallback;
 
         public void Count(DateSource source)
         {
@@ -835,6 +860,9 @@ public sealed class ReleaseDateService
                     break;
                 case DateSource.Estimated:
                     FromEstimate++;
+                    break;
+                case DateSource.Fallback:
+                    FromFallback++;
                     break;
             }
         }

@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Jellyfin.Plugin.ReleaseDateAdded;
 
 /// <summary>
-/// Registrerar pluginets tjänster i Jellyfin.
+/// Registers the plugin's services with Jellyfin.
 /// </summary>
 public class PluginServiceRegistrator : IPluginServiceRegistrator
 {

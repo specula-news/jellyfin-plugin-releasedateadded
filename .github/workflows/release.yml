@@ -73,6 +73,23 @@ jobs:
           import json, os, datetime
           meta = json.load(open("meta.json", encoding="utf-8"))
           v = os.environ
+          # Keep earlier versions so clients with a cached catalog page can still install.
+          previous = []
+          if os.path.exists("manifest.json"):
+              try:
+                  previous = json.load(open("manifest.json", encoding="utf-8"))[0].get("versions", [])
+              except Exception:
+                  previous = []
+          versions = [x for x in previous if x.get("version") != v["VERSION"]]
+          versions.append({
+              "version": v["VERSION"],
+              "changelog": meta["changelog"],
+              "targetAbi": v["TARGET_ABI"],
+              "sourceUrl": f"https://github.com/{v['REPO']}/releases/download/v{v['VERSION']}/{v['ZIP']}",
+              "checksum": v["MD5"],
+              "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+          })
+          versions.sort(key=lambda x: tuple(int(p) for p in x["version"].split(".")), reverse=True)
           manifest = [{
               "guid": meta["guid"],
               "name": meta["name"],
@@ -81,14 +98,7 @@ jobs:
               "owner": meta["owner"],
               "category": meta["category"],
               "imageUrl": "",
-              "versions": [{
-                  "version": v["VERSION"],
-                  "changelog": meta["changelog"],
-                  "targetAbi": v["TARGET_ABI"],
-                  "sourceUrl": f"https://github.com/{v['REPO']}/releases/download/v{v['VERSION']}/{v['ZIP']}",
-                  "checksum": v["MD5"],
-                  "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-              }],
+              "versions": versions,
           }]
           with open("manifest.json", "w", encoding="utf-8") as f:
               json.dump(manifest, f, ensure_ascii=False, indent=2)
